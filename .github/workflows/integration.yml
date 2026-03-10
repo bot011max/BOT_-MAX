@@ -1,0 +1,57 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  integration:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Start all services
+        run: docker compose -f docker-compose.test.yml up -d
+      
+      - name: Wait for services to be ready
+        run: |
+          sleep 30
+          ./scripts/wait-for-services.sh
+      
+      - name: Run integration tests
+        run: go test ./tests/integration/... -v -tags=integration
+        env:
+          TEST_INTEGRATION: true
+      
+      - name: Test API endpoints
+        run: |
+          # Тест регистрации
+          curl -X POST http://localhost:8080/api/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com","password":"test123","role":"patient"}'
+          
+          # Тест логина
+          curl -X POST http://localhost:8080/api/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com","password":"test123"}'
+      
+      - name: Test voice processing
+        run: |
+          curl -X POST http://localhost:8001/process-voice \
+            -F "audio=@./tests/fixtures/sample_audio/test.wav"
+      
+      - name: Test OCR
+        run: |
+          curl -X POST http://localhost:8002/process-document \
+            -F "file=@./tests/fixtures/sample_lab/invitro_sample.pdf"
+      
+      - name: Upload integration test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-logs
+          path: |
+            docker-compose.log
+            tests/integration/logs/
