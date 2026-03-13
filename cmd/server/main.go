@@ -32,6 +32,7 @@ func main() {
     )
     
     db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    _ = db  // временно "используем" переменную
     if err != nil {
         log.Fatal("Ошибка подключения к БД:", err)
     }
