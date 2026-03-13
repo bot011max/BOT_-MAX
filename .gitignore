@@ -1,19 +1,41 @@
 # Зависимости
 vendor/
-node_modules/
 
-# Бинарные файлы
-*.exe
-*.dll
-medical-bot
+# Временные файлы
+*.log
+*.tmp
+*.temp
+tmp/
 
 # Секреты
 .env
 *.key
 *.pem
+*.crt
 
-# Временные файлы
-*.log
-*.tmp
+# Бинарные файлы
+medical-bot
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Системные файлы
 .DS_Store
 Thumbs.db
+
+# Тестовые отчеты
+coverage.txt
+coverage.html
+*.out
+
+# Docker
+*.pid
+.dockerignore
