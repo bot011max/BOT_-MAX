@@ -14,6 +14,10 @@ import (
     "github.com/joho/godotenv"
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
+
+    "BOT_-MAX/internal/api"
+    "BOT_-MAX/internal/middleware"
+    "BOT_-MAX/internal/models"
 )
 
 func main() {
@@ -23,34 +27,57 @@ func main() {
     }
 
     // Подключение к БД
-    dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-        os.Getenv("DB_HOST"),
-        os.Getenv("DB_PORT"),
-        os.Getenv("DB_USER"),
-        os.Getenv("DB_PASSWORD"),
-        os.Getenv("DB_NAME"),
+    dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=UTC",
+        getEnv("DB_HOST", "localhost"),
+        getEnv("DB_PORT", "5432"),
+        getEnv("DB_USER", "postgres"),
+        getEnv("DB_PASSWORD", "postgres"),
+        getEnv("DB_NAME", "medical_bot"),
     )
     
     db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-    _ = db  // временно "используем" переменную
     if err != nil {
         log.Fatal("Ошибка подключения к БД:", err)
     }
+    
+    // Автоматическая миграция
+    if err := db.AutoMigrate(
+        &models.User{},
+        &models.Patient{},
+        &models.Doctor{},
+        &models.Prescription{},
+        &models.Reminder{},
+    ); err != nil {
+        log.Fatal("Ошибка миграции:", err)
+    }
+    
+    log.Println("База данных успешно подключена и мигрирована")
 
     // Создаем роутер
     r := gin.Default()
     
     // CORS
-    r.Use(cors.Default())
+    r.Use(cors.New(cors.Config{
+        AllowOrigins:     []string{"*"},
+        AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+        AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+        ExposeHeaders:    []string{"Content-Length"},
+        AllowCredentials: true,
+        MaxAge:           12 * time.Hour,
+    }))
 
-    // Простые маршруты для теста
+    // Статические файлы
+    r.Static("/static", "./web/static")
+    r.LoadHTMLGlob("web/templates/*")
+
+    // Главная страница
     r.GET("/", func(c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{
-            "message": "Медицинский бот работает!",
-            "version": "1.0.0",
+        c.HTML(http.StatusOK, "index.html", gin.H{
+            "title": "Медицинский бот",
         })
     })
 
+    // Health check
     r.GET("/health", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{
             "status": "ok",
@@ -58,17 +85,28 @@ func main() {
         })
     })
 
+    // Инициализация обработчиков
+    authHandler := api.NewAuthHandler(db)
+
     // API маршруты
     api := r.Group("/api")
     {
-        api.GET("/ping", func(c *gin.Context) {
-            c.JSON(http.StatusOK, gin.H{"message": "pong"})
-        })
+        // Публичные маршруты
+        api.POST("/register", authHandler.Register)
+        api.POST("/login", authHandler.Login)
+        
+        // Защищенные маршруты
+        protected := api.Group("/")
+        protected.Use(middleware.AuthRequired())
+        {
+            protected.GET("/profile", authHandler.Profile)
+        }
     }
 
     // Запуск сервера
+    port := getEnv("PORT", "8080")
     srv := &http.Server{
-        Addr:         ":8080",
+        Addr:         ":" + port,
         Handler:      r,
         ReadTimeout:  15 * time.Second,
         WriteTimeout: 15 * time.Second,
@@ -76,7 +114,7 @@ func main() {
     }
 
     go func() {
-        log.Println("Сервер запущен на :8080")
+        log.Printf("Сервер запущен на порту %s", port)
         if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
             log.Fatal("Ошибка сервера:", err)
         }
@@ -87,4 +125,17 @@ func main() {
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
     <-quit
     log.Println("Завершение работы...")
+
+    // Закрываем соединение с БД
+    sqlDB, _ := db.DB()
+    sqlDB.Close()
+    
+    log.Println("Сервер остановлен")
+}
+
+func getEnv(key, defaultValue string) string {
+    if value := os.Getenv(key); value != "" {
+        return value
+    }
+    return defaultValue
 }
