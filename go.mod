@@ -1,4 +1,4 @@
-module github.com/твой-ник/BOT_-MAX
+module github.com/bot011max/BOT_-MAX
 
 go 1.22
 
