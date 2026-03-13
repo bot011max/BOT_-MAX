@@ -1,0 +1,19 @@
+# Зависимости
+vendor/
+node_modules/
+
+# Бинарные файлы
+*.exe
+*.dll
+medical-bot
+
+# Секреты
+.env
+*.key
+*.pem
+
+# Временные файлы
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
