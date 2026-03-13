@@ -8,10 +8,12 @@ COPY . .
 RUN go build -o medical-bot ./cmd/server
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
 
 COPY --from=builder /app/medical-bot .
+COPY --from=builder /app/web ./web
 
 EXPOSE 8080
+
 CMD ["./medical-bot"]
