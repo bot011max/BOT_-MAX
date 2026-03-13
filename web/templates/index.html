@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Медицинский бот</title>
+    <title>{{.title}}</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -11,24 +11,86 @@
         <h1>👋 Добро пожаловать в Медицинский бот</h1>
         
         <div class="card">
-            <h2>Для пациентов</h2>
-            <p>Отслеживайте прием лекарств, записывайте симптомы, получайте напоминания</p>
-            <a href="/patient" class="btn">Войти как пациент</a>
+            <h2>📋 О проекте</h2>
+            <p>Умный помощник для пациентов и врачей. Автоматизирует ведение медицинской карты, напоминания о лекарствах и проверку безопасности лечения.</p>
         </div>
-        
-        <div class="card">
-            <h2>Для врачей</h2>
-            <p>Управляйте назначениями, отслеживайте приверженность лечению</p>
-            <a href="/doctor" class="btn">Войти как врач</a>
+
+        <div class="features">
+            <div class="feature">
+                <h3>👤 Для пациентов</h3>
+                <ul>
+                    <li>✓ Напоминания о лекарствах</li>
+                    <li>✓ Дневник симптомов</li>
+                    <li>✓ История назначений</li>
+                </ul>
+            </div>
+            
+            <div class="feature">
+                <h3>👨‍⚕️ Для врачей</h3>
+                <ul>
+                    <li>✓ Управление назначениями</li>
+                    <li>✓ Контроль приверженности</li>
+                    <li>✓ Шаблоны рецептов</li>
+                </ul>
+            </div>
+            
+            <div class="feature">
+                <h3>🏥 Для клиник</h3>
+                <ul>
+                    <li>✓ Управление пациентами</li>
+                    <li>✓ Отчеты и статистика</li>
+                    <li>✓ Интеграция с МИС</li>
+                </ul>
+            </div>
         </div>
-        
+
         <div class="card">
-            <h2>Для клиник</h2>
-            <p>Управляйте пациентами и врачами, получайте отчеты</p>
-            <a href="/clinic" class="btn">Войти как клиника</a>
+            <h2>🚀 API Endpoints</h2>
+            <table>
+                <tr>
+                    <th>Метод</th>
+                    <th>Путь</th>
+                    <th>Описание</th>
+                </tr>
+                <tr>
+                    <td><span class="method">POST</span></td>
+                    <td>/api/register</td>
+                    <td>Регистрация</td>
+                </tr>
+                <tr>
+                    <td><span class="method">POST</span></td>
+                    <td>/api/login</td>
+                    <td>Вход в систему</td>
+                </tr>
+                <tr>
+                    <td><span class="method">GET</span></td>
+                    <td>/api/profile</td>
+                    <td>Профиль (требуется токен)</td>
+                </tr>
+                <tr>
+                    <td><span class="method">GET</span></td>
+                    <td>/health</td>
+                    <td>Проверка здоровья</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>🔧 Тестирование API</h2>
+            <p>Попробуйте зарегистрироваться:</p>
+            <pre>
+curl -X POST http://localhost:8080/api/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123",
+    "first_name": "Иван",
+    "last_name": "Петров",
+    "role": "patient"
+  }'
+            </pre>
         </div>
     </div>
-    
     <script src="/static/js/main.js"></script>
 </body>
 </html>
