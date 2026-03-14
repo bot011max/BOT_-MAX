@@ -343,21 +343,45 @@ func (b *TelegramBot) handleLogin(update tgbotapi.Update, user *TelegramUser, se
 
 func (b *TelegramBot) handleMedications(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.sendMessage(chatID, "💊 Лекарства (в разработке)", MedicationsMenu(false))
 }
 
 func (b *TelegramBot) handleAppointments(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.sendMessage(chatID, "📅 Приемы (в разработке)", nil)
 }
 
 func (b *TelegramBot) handleSymptoms(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.sendMessage(chatID, "📝 Симптомы (в разработке)", SymptomsMenu())
 }
 
 func (b *TelegramBot) handleToday(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.sendMessage(chatID, "📅 Сегодня (в разработке)", nil)
 }
 
@@ -395,21 +419,48 @@ func (b *TelegramBot) handleMenuSettings(update tgbotapi.Update, user *TelegramU
 
 func (b *TelegramBot) handleMedAdd(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.CallbackQuery.Message.Chat.ID
-    b.editMessage(chatID, update.CallbackQuery.Message.MessageID, "➕ Добавление лекарства (в разработке)", nil)
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
+    session.State = StateAwaitingMedication
+    b.db.Save(session)
+    
+    b.editMessage(chatID, update.CallbackQuery.Message.MessageID, "💊 Введите название лекарства:", nil)
 }
 
 func (b *TelegramBot) handleMedList(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.CallbackQuery.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.editMessage(chatID, update.CallbackQuery.Message.MessageID, "📋 Список лекарств (в разработке)", nil)
 }
 
 func (b *TelegramBot) handleMedTake(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.CallbackQuery.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.editMessage(chatID, update.CallbackQuery.Message.MessageID, "✅ Отметка приема (в разработке)", nil)
 }
 
 func (b *TelegramBot) handleMedStats(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.CallbackQuery.Message.Chat.ID
+    
+    if user.UserID == "" {
+        b.requireAuth(chatID)
+        return
+    }
+    
     b.editMessage(chatID, update.CallbackQuery.Message.MessageID, "📊 Статистика (в разработке)", nil)
 }
 
@@ -436,8 +487,10 @@ func (b *TelegramBot) handleSymptomCustom(update tgbotapi.Update, user *Telegram
 
 func (b *TelegramBot) handleIntensity(update tgbotapi.Update, user *TelegramUser, session *TelegramSession) {
     chatID := update.CallbackQuery.Message.Chat.ID
-    data := update.CallbackQuery.Data
-    parts := data[len("intensity_"):]
+    
+    // Получаем интенсивность из данных callback (но не используем её в этом примере)
+    // data := update.CallbackQuery.Data
+    // intensity := data[len("intensity_"):]
     
     msg := "✅ Симптом записан!"
     session.State = StateNone
@@ -482,11 +535,12 @@ func (b *TelegramBot) handleDosageInput(update tgbotapi.Update, user *TelegramUs
 
 func (b *TelegramBot) handleFrequencyInput(update tgbotapi.Update, user *TelegramUser, session *TelegramSession, text string) {
     chatID := update.Message.Chat.ID
-    data := session.TempData
-    medication := data[:len(data)-len(text)-1]
+    data := strings.Split(session.TempData, "|")
+    medication := data[0]
+    dosage := data[1]
     
     session.State = StateAwaitingDuration
-    session.TempData = medication + "|" + text
+    session.TempData = medication + "|" + dosage + "|" + text
     b.db.Save(session)
     
     msg := "Сколько дней принимать? (например: 7 дней)"
@@ -507,6 +561,8 @@ func (b *TelegramBot) handleDurationInput(update tgbotapi.Update, user *Telegram
 func (b *TelegramBot) handleAuthInput(update tgbotapi.Update, user *TelegramUser, session *TelegramSession, text string) {
     chatID := update.Message.Chat.ID
     
+    // Здесь должна быть проверка кода из БД
+    // Для демо просто авторизуем
     user.UserID = "test-user-id"
     session.State = StateNone
     b.db.Save(user)
