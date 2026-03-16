@@ -112,11 +112,82 @@ if [ "$FK_EXISTS" -gt 0 ]; then
     ADD CONSTRAINT telegram_users_user_id_fkey 
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
     COMMIT;
-    "
+    " > /dev/null 2>&1
     echo -e "${GREEN}✅ Foreign key успешно исправлен${NC}"
 else
     echo -e "${GREEN}✅ Foreign key в порядке${NC}"
 fi
+
+# =====================================
+# Шаг 3.6: Проверка наличия всех необходимых полей
+# =====================================
+echo -e "\n${YELLOW}📊 Шаг 3.6: Проверка структуры таблицы...${NC}"
+
+# Проверяем наличие поля email
+EMAIL_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+SELECT COUNT(*) FROM information_schema.columns 
+WHERE table_name = 'telegram_users' AND column_name = 'email';
+" | xargs)
+
+if [ "$EMAIL_EXISTS" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  Поле email не найдено. Добавляю...${NC}"
+    docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+    ALTER TABLE telegram_users ADD COLUMN email VARCHAR(255);
+    " > /dev/null 2>&1
+    echo -e "${GREEN}✅ Поле email добавлено${NC}"
+else
+    echo -e "${GREEN}✅ Поле email существует${NC}"
+fi
+
+# Проверяем наличие поля language_code
+LANG_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+SELECT COUNT(*) FROM information_schema.columns 
+WHERE table_name = 'telegram_users' AND column_name = 'language_code';
+" | xargs)
+
+if [ "$LANG_EXISTS" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  Поле language_code не найдено. Добавляю...${NC}"
+    docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+    ALTER TABLE telegram_users ADD COLUMN language_code VARCHAR(10);
+    " > /dev/null 2>&1
+    echo -e "${GREEN}✅ Поле language_code добавлено${NC}"
+else
+    echo -e "${GREEN}✅ Поле language_code существует${NC}"
+fi
+
+# Проверяем наличие поля auth_token
+AUTH_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+SELECT COUNT(*) FROM information_schema.columns 
+WHERE table_name = 'telegram_users' AND column_name = 'auth_token';
+" | xargs)
+
+if [ "$AUTH_EXISTS" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  Поле auth_token не найдено. Добавляю...${NC}"
+    docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+    ALTER TABLE telegram_users ADD COLUMN auth_token VARCHAR(50);
+    " > /dev/null 2>&1
+    echo -e "${GREEN}✅ Поле auth_token добавлено${NC}"
+else
+    echo -e "${GREEN}✅ Поле auth_token существует${NC}"
+fi
+
+# Проверяем наличие поля token_expires
+TOKEN_EXPIRES_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+SELECT COUNT(*) FROM information_schema.columns 
+WHERE table_name = 'telegram_users' AND column_name = 'token_expires';
+" | xargs)
+
+if [ "$TOKEN_EXPIRES_EXISTS" -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  Поле token_expires не найдено. Добавляю...${NC}"
+    docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+    ALTER TABLE telegram_users ADD COLUMN token_expires TIMESTAMP;
+    " > /dev/null 2>&1
+    echo -e "${GREEN}✅ Поле token_expires добавлено${NC}"
+else
+    echo -e "${GREEN}✅ Поле token_expires существует${NC}"
+fi
+
+echo -e "${GREEN}✅ Проверка структуры таблицы завершена${NC}"
 
 # =====================================
 # Шаг 4: Запуск бота
