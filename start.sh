@@ -72,7 +72,7 @@ fi
 echo -e "${GREEN}TELEGRAM_TOKEN найден${NC}"
 
 # =====================================
-# Шаг 3: Проверка зависимостей
+# Шаг 3: Проверка зависимостей Go
 # =====================================
 echo -e "\n${YELLOW}Шаг 3: Проверка зависимостей Go...${NC}"
 
@@ -81,28 +81,110 @@ if [ ! -f go.mod ]; then
     exit 1
 fi
 
+# Проверяем наличие всех необходимых пакетов
+echo -e "${YELLOW}Проверка и установка зависимостей...${NC}"
+
+# Список всех необходимых пакетов
+PACKAGES=(
+    "github.com/gin-gonic/gin"
+    "github.com/gin-contrib/cors"
+    "github.com/golang-jwt/jwt/v5"
+    "github.com/google/uuid"
+    "github.com/joho/godotenv"
+    "golang.org/x/crypto/bcrypt"
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+    "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+# Проверяем и устанавливаем каждый пакет
+for pkg in "${PACKAGES[@]}"; do
+    if ! go list "$pkg" > /dev/null 2>&1; then
+        echo -e "${YELLOW}Устанавливаю $pkg...${NC}"
+        go get "$pkg"
+        check_error
+    fi
+done
+
+# Синхронизируем зависимости
 echo -e "${YELLOW}Синхронизация зависимостей (go mod tidy)...${NC}"
 go mod tidy
 check_error
-echo -e "${GREEN}Зависимости в порядке${NC}"
+echo -e "${GREEN}Все зависимости установлены${NC}"
 
 # =====================================
-# Шаг 4: Исправление БД
+# Шаг 4: Исправление базы данных
 # =====================================
-echo -e "\n${YELLOW}Шаг 4: Проверка базы данных...${NC}"
+echo -e "\n${YELLOW}Шаг 4: Исправление базы данных...${NC}"
 
-# Добавляем поле email, если его нет
-docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
-DO \$\$
-BEGIN
-    BEGIN
-        ALTER TABLE telegram_users ADD COLUMN email VARCHAR(255);
-        RAISE NOTICE 'Поле email добавлено';
-    EXCEPTION
-        WHEN duplicate_column THEN RAISE NOTICE 'Поле email уже существует';
-    END;
-END
-\$\$;" 2>/dev/null
+# Проверяем, существует ли таблица telegram_users
+TABLE_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'telegram_users');" 2>/dev/null | xargs)
+
+if [ "$TABLE_EXISTS" = "t" ]; then
+    echo -e "${GREEN}Таблица telegram_users существует${NC}"
+    
+    # === ИСПРАВЛЕНИЕ ТИПА user_id ===
+    echo -e "${YELLOW}Проверяю тип поля user_id...${NC}"
+    
+    # Проверяем тип поля user_id
+    USER_ID_TYPE=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+    SELECT data_type FROM information_schema.columns 
+    WHERE table_name = 'telegram_users' AND column_name = 'user_id';" 2>/dev/null | xargs)
+    
+    if [ "$USER_ID_TYPE" = "uuid" ]; then
+        echo -e "${YELLOW}Поле user_id имеет тип uuid. Меняю на text...${NC}"
+        
+        # Удаляем foreign key и меняем тип
+        docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+        BEGIN;
+        ALTER TABLE telegram_users DROP CONSTRAINT IF EXISTS telegram_users_user_id_fkey;
+        ALTER TABLE telegram_users ALTER COLUMN user_id TYPE text;
+        COMMIT;
+        " > /dev/null 2>&1
+        
+        echo -e "${GREEN}Поле user_id изменено на text${NC}"
+    else
+        echo -e "${GREEN}Поле user_id уже имеет тип text${NC}"
+    fi
+    
+    # === ДОБАВЛЕНИЕ ПОЛЯ email ===
+    echo -e "${YELLOW}Проверяю наличие поля email...${NC}"
+    
+    EMAIL_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+    SELECT COUNT(*) FROM information_schema.columns 
+    WHERE table_name = 'telegram_users' AND column_name = 'email';" 2>/dev/null | xargs)
+    
+    if [ "$EMAIL_EXISTS" -eq 0 ]; then
+        echo -e "${YELLOW}Добавляю поле email...${NC}"
+        docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "
+        ALTER TABLE telegram_users ADD COLUMN email VARCHAR(255);" > /dev/null 2>&1
+        echo -e "${GREEN}Поле email добавлено${NC}"
+    else
+        echo -e "${GREEN}Поле email существует${NC}"
+    fi
+    
+    # === ДОБАВЛЕНИЕ ДРУГИХ ПОЛЕЙ ===
+    for field in language_code auth_token token_expires; do
+        FIELD_EXISTS=$(docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -t -c "
+        SELECT COUNT(*) FROM information_schema.columns 
+        WHERE table_name = 'telegram_users' AND column_name = '$field';" 2>/dev/null | xargs)
+        
+        if [ "$FIELD_EXISTS" -eq 0 ]; then
+            echo -e "${YELLOW}Добавляю поле $field...${NC}"
+            case $field in
+                language_code) docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "ALTER TABLE telegram_users ADD COLUMN language_code VARCHAR(10);" > /dev/null 2>&1 ;;
+                auth_token) docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "ALTER TABLE telegram_users ADD COLUMN auth_token VARCHAR(50);" > /dev/null 2>&1 ;;
+                token_expires) docker exec bot_max-postgres-1 psql -U postgres -d medical_bot -c "ALTER TABLE telegram_users ADD COLUMN token_expires TIMESTAMP;" > /dev/null 2>&1 ;;
+            esac
+            echo -e "${GREEN}Поле $field добавлено${NC}"
+        else
+            echo -e "${GREEN}Поле $field существует${NC}"
+        fi
+    done
+else
+    echo -e "${YELLOW}Таблица telegram_users будет создана автоматически при запуске${NC}"
+fi
 
 # =====================================
 # Шаг 5: Запуск бота
@@ -120,3 +202,6 @@ echo -e "\n${YELLOW}Бот остановлен${NC}"
 EOF
 
 chmod +x start.sh
+
+echo -e "\n${GREEN}Скрипт start.sh успешно создан!${NC}"
+echo -e "${YELLOW}Для запуска выполните: ./start.sh${NC}"
