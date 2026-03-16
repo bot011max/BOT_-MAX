@@ -44,6 +44,27 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  telegram-bot:
+    build: .
+    container_name: bot_max-telegram
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: medical_bot
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+    command: go run cmd/telegram-bot/main.go
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   postgres_data:
     driver: local
