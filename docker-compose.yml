@@ -45,7 +45,9 @@ services:
         max-file: "3"
 
   telegram-bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram
     container_name: bot_max-telegram
     depends_on:
       postgres:
@@ -57,7 +59,6 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: medical_bot
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
-    command: go run cmd/telegram-bot/main.go
     restart: always
     logging:
       driver: "json-file"
