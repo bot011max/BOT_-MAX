@@ -1,0 +1,94 @@
+# config/grafana/dashboards/security.json
+{
+  "dashboard": {
+    "title": "Security Monitoring Dashboard",
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "WAF Blocks by Rule",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(waf_blocks_total[5m])) by (rule)",
+            "legendFormat": "{{ rule }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "title": "Rate Limiter Blocks",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(rate_limiter_blocks_total[5m])) by (ip)",
+            "legendFormat": "{{ ip }}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "title": "Failed Logins",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(failed_logins_total[1h]))"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+      },
+      {
+        "title": "Active Users",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "active_users_total"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+      },
+      {
+        "title": "HTTP Request Duration",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_bucket[5m])"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "title": "Top Attackers IPs",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum(rate(waf_blocks_total[24h])) by (ip))",
+            "format": "table"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "title": "Database Query Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(database_query_duration_seconds_sum[5m]) / rate(database_query_duration_seconds_count[5m])",
+            "legendFormat": "avg duration"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "rate(waf_blocks_total[1m]) > 10",
+          "name": "Attack Alert",
+          "iconColor": "red"
+        }
+      ]
+    }
+  }
+}
