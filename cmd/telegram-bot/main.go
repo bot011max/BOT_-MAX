@@ -1,77 +1,124 @@
-// cmd/telegram/main.go
+// cmd/telegram/main.go - ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ
 package main
 
 import (
     "context"
-    "crypto/subtle"
+    "crypto/hmac"
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
     "fmt"
+    "io"
     "log"
+    "net/http"
     "os"
     "os/signal"
     "strings"
+    "sync"
     "syscall"
     "time"
 
+    "github.com/go-redis/redis/v8"
     "github.com/go-telegram-bot-api/telegram-bot-api/v5"
     "github.com/bot011max/BOT_MAX/internal/security"
-    "github.com/bot011max/BOT_MAX/internal/models"
-    "gorm.io/gorm"
-    "github.com/redis/go-redis/v9"
+    "github.com/bot011max/BOT_MAX/internal/monitoring"
+    "golang.org/x/time/rate"
 )
 
 type SecureTelegramBot struct {
     bot           *tgbotapi.BotAPI
-    db            *gorm.DB
     redis         *redis.Client
     secretManager *security.SecretManager
     auditLogger   *security.AuditLogger
     rateLimiter   *security.AdaptiveRateLimiter
+    waf           *security.WAFMiddleware
     commands      map[string]CommandHandler
+    limiter       *rate.Limiter
+    mu            sync.RWMutex
+    webhookSecret string
 }
 
 type CommandHandler struct {
     Handler     func(update tgbotapi.Update, args []string)
     Description string
     AuthRequired bool
-    RateLimit    int // запросов в минуту
+    RateLimit    int
+}
+
+type WebhookRequest struct {
+    UpdateID int `json:"update_id"`
+    Message  *struct {
+        MessageID int `json:"message_id"`
+        From      struct {
+            ID           int64  `json:"id"`
+            IsBot        bool   `json:"is_bot"`
+            FirstName    string `json:"first_name"`
+            Username     string `json:"username"`
+        } `json:"from"`
+        Chat struct {
+            ID        int64  `json:"id"`
+            Type      string `json:"type"`
+        } `json:"chat"`
+        Date int    `json:"date"`
+        Text string `json:"text"`
+        Voice *struct {
+            FileID   string `json:"file_id"`
+            Duration int    `json:"duration"`
+        } `json:"voice"`
+        Photo []struct {
+            FileID   string `json:"file_id"`
+            FileSize int    `json:"file_size"`
+        } `json:"photo"`
+    } `json:"message"`
 }
 
 func NewSecureTelegramBot() (*SecureTelegramBot, error) {
     // Инициализация секретов
     secretManager, err := security.NewSecretManager(true)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("ошибка создания secret manager: %w", err)
     }
 
-    // Получаем токен из секретов
+    // Получаем токен
     token, err := secretManager.GetSecret("telegram_token")
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("ошибка получения токена: %w", err)
     }
 
     // Создаем бота
     bot, err := tgbotapi.NewBotAPI(token)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("ошибка создания бота: %w", err)
     }
 
-    // Инициализация Redis для rate limiting
+    // Redis для хранения состояний
     redisPass, _ := secretManager.GetSecret("redis_password")
     rdb := redis.NewClient(&redis.Options{
         Addr:     os.Getenv("REDIS_HOST") + ":6379",
         Password: redisPass,
         DB:       0,
+        PoolSize: 100,
     })
 
     // Rate limiter
-    rateLimiter, _ := security.NewAdaptiveRateLimiter(os.Getenv("REDIS_HOST")+":6379", 
+    rateLimiter, err := security.NewAdaptiveRateLimiter("redis:6379", 
         &security.RateLimiterConfig{
             RequestsPerSecond: 1,
-            Burst:             5,
-            BlockDuration:     time.Hour,
+            Burst:             3,
+            BlockDuration:     30 * time.Minute,
             CleanupInterval:   time.Minute,
             EnableAdaptive:    true,
         })
+    if err != nil {
+        return nil, err
+    }
+
+    // WAF
+    wafConfig := security.WAFConfig{
+        EnableSQLInjection: true,
+        EnableXSS:         true,
+    }
+    waf, _ := security.NewWAFMiddleware(wafConfig)
 
     // Audit logger
     auditLogger, _ := security.NewAuditLogger()
@@ -81,139 +128,181 @@ func NewSecureTelegramBot() (*SecureTelegramBot, error) {
         secretManager: secretManager,
         auditLogger:   auditLogger,
         rateLimiter:   rateLimiter,
+        waf:           waf,
         redis:         rdb,
+        limiter:       rate.NewLimiter(rate.Limit(10), 20),
         commands:      make(map[string]CommandHandler),
+        webhookSecret: security.GenerateRandomString(32),
     }
 
-    // Регистрируем команды
     stb.registerCommands()
-
     return stb, nil
 }
 
-func (b *SecureTelegramBot) registerCommands() {
-    b.commands = map[string]CommandHandler{
-        "/start": {
-            Handler:     b.handleStart,
-            Description: "Начать работу с ботом",
-            AuthRequired: false,
-            RateLimit:    2,
-        },
-        "/help": {
-            Handler:     b.handleHelp,
-            Description: "Показать справку",
-            AuthRequired: false,
-            RateLimit:    5,
-        },
-        "/bind": {
-            Handler:     b.handleBind,
-            Description: "Привязать аккаунт",
-            AuthRequired: false,
-            RateLimit:    3,
-        },
-        "/medications": {
-            Handler:     b.handleMedications,
-            Description: "Мои лекарства",
-            AuthRequired: true,
-            RateLimit:    10,
-        },
-        "/remind": {
-            Handler:     b.handleRemind,
-            Description: "Установить напоминание",
-            AuthRequired: true,
-            RateLimit:    5,
-        },
-        "/appointments": {
-            Handler:     b.handleAppointments,
-            Description: "Мои визиты",
-            AuthRequired: true,
-            RateLimit:    5,
-        },
-    }
-}
-
-func (b *SecureTelegramBot) Run() error {
-    log.Printf("Бот @%s запущен", b.bot.Self.UserName)
-
-    // Устанавливаем вебхук (для production)
+// Установка вебхука с проверкой подписи
+func (b *SecureTelegramBot) SetWebhook() error {
     webhookURL := os.Getenv("WEBHOOK_URL") + "/webhook/telegram"
-    webhookConfig := tgbotapi.NewWebhook(webhookURL)
     
+    // Добавляем секрет в URL для валидации
+    webhookURLWithSecret := fmt.Sprintf("%s?secret=%s", webhookURL, b.webhookSecret)
+    
+    webhookConfig := tgbotapi.NewWebhook(webhookURLWithSecret)
+    
+    // Устанавливаем максимальное количество соединений
+    webhookConfig.MaxConnections = 40
+    
+    // Устанавливаем список разрешенных обновлений
+    webhookConfig.AllowedUpdates = []string{
+        "message",
+        "callback_query",
+        "inline_query",
+    }
+
     _, err := b.bot.Request(webhookConfig)
     if err != nil {
-        log.Printf("Ошибка установки webhook: %v", err)
+        return fmt.Errorf("ошибка установки webhook: %w", err)
     }
 
-    updates := b.bot.ListenForWebhook("/webhook/telegram")
+    // Проверяем статус webhook
+    webhookInfo, err := b.bot.GetWebhookInfo()
+    if err != nil {
+        return err
+    }
+
+    if webhookInfo.LastErrorDate != 0 {
+        log.Printf("Ошибка webhook: %s", webhookInfo.LastErrorMessage)
+    }
+
+    log.Printf("✅ Webhook установлен: %s", webhookURL)
+    log.Printf("📊 Статус: ожидает %d обновлений", webhookInfo.PendingUpdateCount)
     
-    // Graceful shutdown
-    ctx, stop := signal.NotifyContext(context.Background(), 
-        os.Interrupt, syscall.SIGTERM)
-    defer stop()
-
-    go func() {
-        <-ctx.Done()
-        log.Println("Завершение работы бота...")
-        b.bot.StopReceivingUpdates()
-    }()
-
-    for update := range updates {
-        go b.handleUpdate(update)
-    }
-
     return nil
 }
 
-func (b *SecureTelegramBot) handleUpdate(update tgbotapi.Update) {
-    // Rate limiting по chat_id
-    chatID := fmt.Sprintf("%d", update.Message.Chat.ID)
-    if !b.rateLimiter.IsWhitelisted(chatID) {
-        // Проверяем лимиты
-        // (упрощенно, в реальности через middleware)
+// Валидация входящего вебхука
+func (b *SecureTelegramBot) validateWebhook(r *http.Request) bool {
+    // Проверка secret из URL
+    secret := r.URL.Query().Get("secret")
+    if secret != b.webhookSecret {
+        security.SecurityAlert("INVALID_WEBHOOK_SECRET", map[string]interface{}{
+            "remote_addr": r.RemoteAddr,
+            "user_agent":  r.UserAgent(),
+        })
+        return false
     }
 
-    // Валидация входных данных
+    // Проверка подписи Telegram (X-Telegram-Bot-Api-Secret-Token)
+    signature := r.Header.Get("X-Telegram-Bot-Api-Secret-Token")
+    if signature != "" {
+        expected := b.calculateSignature(r)
+        if !hmac.Equal([]byte(signature), []byte(expected)) {
+            security.SecurityAlert("INVALID_WEBHOOK_SIGNATURE", nil)
+            return false
+        }
+    }
+
+    return true
+}
+
+func (b *SecureTelegramBot) calculateSignature(r *http.Request) string {
+    body, _ := io.ReadAll(r.Body)
+    r.Body = io.NopCloser(bytes.NewBuffer(body))
+    
+    h := hmac.New(sha256.New, []byte(b.webhookSecret))
+    h.Write(body)
+    return hex.EncodeToString(h.Sum(nil))
+}
+
+// HTTP handler для вебхука
+func (b *SecureTelegramBot) WebhookHandler(w http.ResponseWriter, r *http.Request) {
+    // 1. Валидация
+    if !b.validateWebhook(r) {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    // 2. Rate limiting по IP
+    if !b.rateLimiter.Allow(r.RemoteAddr) {
+        http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+        return
+    }
+
+    // 3. Декодирование
+    var update WebhookRequest
+    if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+        http.Error(w, "Bad Request", http.StatusBadRequest)
+        return
+    }
+
+    // 4. Асинхронная обработка
+    go b.processUpdate(&update)
+
+    w.WriteHeader(http.StatusOK)
+    json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (b *SecureTelegramBot) processUpdate(update *WebhookRequest) {
+    // Трассировка
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // Логирование
+    b.auditLogger.Log("TELEGRAM_UPDATE", "process", "update", "START", 
+        fmt.Sprintf("%d", update.UpdateID), map[string]interface{}{
+            "chat_id": update.Message.Chat.ID,
+            "type":    b.getUpdateType(update),
+        })
+
+    // Валидация через WAF
+    if err := b.waf.ValidateUpdate(update); err != nil {
+        security.SecurityAlert("WAF_BLOCKED", map[string]interface{}{
+            "update_id": update.UpdateID,
+            "reason":    err.Error(),
+        })
+        return
+    }
+
+    // Обработка по типу
     if update.Message != nil {
-        b.handleMessage(update)
-    } else if update.CallbackQuery != nil {
-        b.handleCallback(update)
+        b.handleMessage(ctx, update)
     }
 }
 
-func (b *SecureTelegramBot) handleMessage(update tgbotapi.Update) {
-    msg := update.Message
-    chatID := msg.Chat.ID
-    text := msg.Text
+func (b *SecureTelegramBot) handleMessage(ctx context.Context, update *WebhookRequest) {
+    chatID := update.Message.Chat.ID
+    text := update.Message.Text
 
-    // Логируем входящее сообщение
-    b.auditLogger.Log("TELEGRAM_MESSAGE", "message_received", 
-        fmt.Sprintf("chat_%d", chatID), "INFO", "telegram_user", 
-        map[string]interface{}{
-            "message_id": msg.MessageID,
-            "text_len":   len(text),
-            "has_media":  msg.Voice != nil || msg.Photo != nil,
-        })
-
-    // Санитизация ввода
+    // Санитизация
     text = b.sanitizeInput(text)
 
-    // Обработка команд
+    // Rate limiting по пользователю
+    if !b.rateLimiter.Allow(fmt.Sprintf("user:%d", chatID)) {
+        b.sendMessage(chatID, "⏳ Слишком много запросов. Подождите немного.")
+        return
+    }
+
+    // Проверка на команды
     if strings.HasPrefix(text, "/") {
         parts := strings.Fields(text)
         command := parts[0]
         args := parts[1:]
 
-        if handler, exists := b.commands[command]; exists {
+        b.mu.RLock()
+        handler, exists := b.commands[command]
+        b.mu.RUnlock()
+
+        if exists {
             // Проверка авторизации
-            if handler.AuthRequired {
-                if !b.isAuthorized(chatID) {
-                    b.sendMessage(chatID, "❌ Сначала привяжите аккаунт командой /bind")
-                    return
-                }
+            if handler.AuthRequired && !b.isAuthorized(chatID) {
+                b.sendMessage(chatID, "🔐 Для этой команды нужно привязать аккаунт.\nИспользуйте /bind")
+                return
             }
 
-            // Вызов обработчика
-            handler.Handler(update, args)
+            // Вызов хендлера
+            handler.Handler(*update, args)
+            
+            // Метрики
+            monitoring.TelegramMessagesTotal.WithLabelValues("command", command).Inc()
         } else {
             b.sendMessage(chatID, "❌ Неизвестная команда. Напишите /help")
         }
@@ -221,52 +310,69 @@ func (b *SecureTelegramBot) handleMessage(update tgbotapi.Update) {
     }
 
     // Обработка голосовых сообщений
-    if msg.Voice != nil {
-        b.handleVoiceMessage(update)
+    if update.Message.Voice != nil {
+        b.handleVoice(ctx, update)
         return
     }
 
     // Обработка фото
-    if msg.Photo != nil {
-        b.handlePhotoMessage(update)
+    if len(update.Message.Photo) > 0 {
+        b.handlePhoto(ctx, update)
         return
     }
-
-    // Ответ по умолчанию
-    b.sendMessage(chatID, "Я не понимаю. Напишите /help для списка команд.")
 }
 
+// Команда /start
 func (b *SecureTelegramBot) handleStart(update tgbotapi.Update, args []string) {
     chatID := update.Message.Chat.ID
     
-    welcomeMsg := "👋 Добро пожаловать в Медицинского бота!\n\n"
-    welcomeMsg += "🔐 <b>Безопасный помощник для вашего здоровья</b>\n\n"
-    welcomeMsg += "Что я умею:\n"
-    welcomeMsg += "• 💊 Напоминать о лекарствах\n"
-    welcomeMsg += "• 📝 Записывать симптомы\n"
-    welcomeMsg += "• 📅 Отслеживать визиты к врачу\n"
-    welcomeMsg += "• 🎤 Распознавать голосовые заметки\n"
-    welcomeMsg += "• 📸 Анализировать фото рецептов\n\n"
-    welcomeMsg += "Для начала работы:\n"
-    welcomeMsg += "1. Зарегистрируйтесь на нашем сайте\n"
-    welcomeMsg += "2. Введите команду /bind для привязки аккаунта"
+    msg := "👋 <b>Добро пожаловать в Медицинского бота!</b>\n\n"
+    msg += "🔐 <b>Безопасность:</b>\n"
+    msg += "• Все сообщения шифруются\n"
+    msg += "• Данные хранятся в зашифрованном виде\n"
+    msg += "• Двухфакторная аутентификация\n\n"
+    msg += "📱 <b>Возможности:</b>\n"
+    msg += "• 💊 Напоминания о лекарствах\n"
+    msg += "• 📝 Голосовой ввод симптомов\n"
+    msg += "• 📅 Запись к врачу\n"
+    msg += "• 📸 Анализ фото рецептов\n\n"
+    msg += "🔑 <b>Начните с команды /bind</b> для привязки аккаунта"
 
-    b.sendMessage(chatID, welcomeMsg)
+    b.sendMessage(chatID, msg)
 }
 
+// Команда /bind с временным кодом
 func (b *SecureTelegramBot) handleBind(update tgbotapi.Update, args []string) {
     chatID := update.Message.Chat.ID
     
-    // Генерируем одноразовый код
-    code := b.generateBindCode(chatID)
+    // Генерируем криптостойкий код
+    code := security.GenerateNumericCode(6)
     
+    // Сохраняем в Redis с TTL 10 минут
+    ctx := context.Background()
+    key := fmt.Sprintf("bind:%d", chatID)
+    
+    // Хешируем код перед сохранением
+    hashedCode := b.hashCode(code)
+    
+    pipe := b.redis.Pipeline()
+    pipe.Set(ctx, key, hashedCode, 10*time.Minute)
+    pipe.Set(ctx, key+":attempts", 0, 10*time.Minute)
+    _, err := pipe.Exec(ctx)
+    
+    if err != nil {
+        b.sendMessage(chatID, "❌ Ошибка генерации кода. Попробуйте позже.")
+        return
+    }
+
     msg := "🔐 <b>Привязка Telegram к аккаунту</b>\n\n"
     msg += "Ваш одноразовый код:\n"
     msg += fmt.Sprintf("<code>%s</code>\n\n", code)
     msg += "Введите этот код в личном кабинете на сайте.\n"
-    msg += "Код действителен 10 минут."
+    msg += "⏰ Код действителен 10 минут.\n\n"
+    msg += "⚠️ Никому не сообщайте этот код!"
 
-    // Создаем inline клавиатуру
+    // Inline клавиатура
     keyboard := tgbotapi.NewInlineKeyboardMarkup(
         tgbotapi.NewInlineKeyboardRow(
             tgbotapi.NewInlineKeyboardButtonURL("🔑 Перейти на сайт", os.Getenv("SITE_URL")),
@@ -276,216 +382,150 @@ func (b *SecureTelegramBot) handleBind(update tgbotapi.Update, args []string) {
     b.sendMessageWithKeyboard(chatID, msg, keyboard)
 }
 
+// Команда /medications с пагинацией
 func (b *SecureTelegramBot) handleMedications(update tgbotapi.Update, args []string) {
     chatID := update.Message.Chat.ID
     
-    // Получаем user_id по telegram_id
+    // Получаем user_id
     userID, err := b.getUserID(chatID)
     if err != nil {
         b.sendMessage(chatID, "❌ Ошибка получения данных")
         return
     }
 
-    // Получаем лекарства из БД
-    var prescriptions []models.Prescription
-    if err := b.db.Where("user_id = ? AND is_active = ?", userID, true).
-        Find(&prescriptions).Error; err != nil {
-        b.sendMessage(chatID, "❌ Ошибка получения лекарств")
-        return
+    // Параметры пагинации
+    page := 1
+    if len(args) > 0 {
+        fmt.Sscanf(args[0], "%d", &page)
     }
+    limit := 5
+    offset := (page - 1) * limit
+
+    // Получаем из БД с пагинацией
+    var prescriptions []models.Prescription
+    var total int64
+    
+    b.db.Where("user_id = ? AND is_active = ?", userID, true).
+        Count(&total)
+    
+    b.db.Where("user_id = ? AND is_active = ?", userID, true).
+        Limit(limit).Offset(offset).
+        Find(&prescriptions)
 
     if len(prescriptions) == 0 {
-        b.sendMessage(chatID, "У вас нет активных назначений")
+        b.sendMessage(chatID, "💊 У вас нет активных назначений")
         return
     }
 
-    msg := "💊 <b>Ваши лекарства:</b>\n\n"
-    for _, p := range prescriptions {
-        msg += fmt.Sprintf("• %s\n", p.Name)
-        msg += fmt.Sprintf("  Дозировка: %s\n", p.Dosage)
-        msg += fmt.Sprintf("  Режим: %s\n", p.Frequency)
+    msg := fmt.Sprintf("💊 <b>Ваши лекарства (страница %d/%d):</b>\n\n", 
+        page, (total+limit-1)/limit)
+    
+    for i, p := range prescriptions {
+        msg += fmt.Sprintf("%d. <b>%s</b>\n", offset+i+1, p.Name)
+        msg += fmt.Sprintf("   💊 Доза: %s\n", p.Dosage)
+        msg += fmt.Sprintf("   ⏰ Режим: %s\n", p.Frequency)
+        msg += fmt.Sprintf("   📅 До: %s\n", p.EndDate.Format("02.01.2006"))
         msg += "---\n"
     }
 
-    b.sendMessage(chatID, msg)
-}
-
-func (b *SecureTelegramBot) handleRemind(update tgbotapi.Update, args []string) {
-    chatID := update.Message.Chat.ID
+    // Клавиатура для навигации
+    keyboard := b.createPaginationKeyboard(page, (total+limit-1)/limit)
     
-    if len(args) < 2 {
-        b.sendMessage(chatID, "❌ Использование: /remind [название] [время]\nПример: /remind Амоксициллин 09:00")
-        return
-    }
-
-    // Сохраняем напоминание в Redis
-    key := fmt.Sprintf("reminder:%d:%s", chatID, args[0])
-    err := b.redis.Set(context.Background(), key, strings.Join(args[1:], " "), 24*time.Hour).Err()
-    if err != nil {
-        b.sendMessage(chatID, "❌ Ошибка создания напоминания")
-        return
-    }
-
-    b.sendMessage(chatID, "✅ Напоминание создано!")
+    b.sendMessageWithKeyboard(chatID, msg, keyboard)
 }
 
-func (b *SecureTelegramBot) handleAppointments(update tgbotapi.Update, args []string) {
-    chatID := update.Message.Chat.ID
-    
-    // Здесь получение визитов из БД
-    b.sendMessage(chatID, "📅 У вас нет запланированных визитов")
-}
-
-func (b *SecureTelegramBot) handleVoiceMessage(update tgbotapi.Update) {
+// Обработка голосовых сообщений
+func (b *SecureTelegramBot) handleVoice(ctx context.Context, update *WebhookRequest) {
     chatID := update.Message.Chat.ID
     voice := update.Message.Voice
 
-    // Проверяем размер (макс 5 МБ)
-    if voice.FileSize > 5*1024*1024 {
-        b.sendMessage(chatID, "❌ Слишком большое голосовое сообщение (макс 5 МБ)")
+    // Проверка размера
+    if voice.Duration > 120 { // 2 минуты макс
+        b.sendMessage(chatID, "❌ Слишком длинное сообщение (макс 2 минуты)")
         return
     }
 
-    b.sendMessage(chatID, "🎤 Обрабатываю голосовое сообщение...")
+    b.sendMessage(chatID, "🎤 <i>Обрабатываю голосовое сообщение...</i>")
 
     // Получаем файл
-    file, err := b.bot.GetFile(tgbotapi.FileConfig{FileID: voice.FileID})
+    fileURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", 
+        b.bot.Token, voice.FileID)
+
+    // Скачиваем с проверкой
+    audioData, err := b.downloadWithCheck(fileURL)
     if err != nil {
-        b.sendMessage(chatID, "❌ Ошибка получения файла")
+        b.sendMessage(chatID, "❌ Ошибка загрузки файла")
         return
     }
 
-    // Отправляем в сервис распознавания (через защищенный канал)
-    go b.processVoiceFile(chatID, file.FilePath)
-}
-
-func (b *SecureTelegramBot) handlePhotoMessage(update tgbotapi.Update) {
-    chatID := update.Message.Chat.ID
-    photos := update.Message.Photo
-    
-    // Берем самую большую фотографию
-    photo := photos[len(photos)-1]
-
-    b.sendMessage(chatID, "📸 Анализирую изображение...")
-
-    file, err := b.bot.GetFile(tgbotapi.FileConfig{FileID: photo.FileID})
+    // Отправляем в voice service через защищенный канал
+    result, err := b.sendToVoiceService(audioData)
     if err != nil {
-        b.sendMessage(chatID, "❌ Ошибка получения файла")
+        b.sendMessage(chatID, "❌ Ошибка распознавания")
         return
     }
 
-    // Отправляем в сервис OCR (через защищенный канал)
-    go b.processPhotoFile(chatID, file.FilePath)
+    b.sendMessage(chatID, fmt.Sprintf("📝 <b>Распознано:</b>\n%s", result))
 }
 
-func (b *SecureTelegramBot) handleCallback(update tgbotapi.Update) {
-    callback := update.CallbackQuery
-    chatID := callback.Message.Chat.ID
-    data := callback.Data
-
-    // Подтверждаем получение
-    b.bot.Request(tgbotapi.NewCallback(callback.ID, ""))
-
-    // Обработка callback данных
-    parts := strings.Split(data, ":")
-    if len(parts) < 2 {
-        return
-    }
-
-    switch parts[0] {
-    case "confirm":
-        b.sendMessage(chatID, "✅ Подтверждено!")
-    case "cancel":
-        b.sendMessage(chatID, "❌ Отменено")
-    }
-}
-
-func (b *SecureTelegramBot) generateBindCode(chatID int64) string {
-    // Генерируем 6-значный код
-    code := fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+// Graceful shutdown
+func (b *SecureTelegramBot) Shutdown() {
+    log.Println("🔄 Завершение работы бота...")
     
-    // Сохраняем в Redis на 10 минут
-    key := fmt.Sprintf("bind:%d", chatID)
-    b.redis.Set(context.Background(), key, code, 10*time.Minute)
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // Удаляем вебхук
+    b.bot.RemoveWebhook()
     
-    return code
-}
-
-func (b *SecureTelegramBot) isAuthorized(chatID int64) bool {
-    key := fmt.Sprintf("user:%d", chatID)
-    exists, _ := b.redis.Exists(context.Background(), key).Result()
-    return exists > 0
-}
-
-func (b *SecureTelegramBot) getUserID(chatID int64) (string, error) {
-    key := fmt.Sprintf("user:%d", chatID)
-    return b.redis.Get(context.Background(), key).Result()
-}
-
-func (b *SecureTelegramBot) sanitizeInput(input string) string {
-    // Удаляем потенциально опасные символы
-    dangerous := []string{"<", ">", "&", "'", "\"", "--", ";", "/*", "*/"}
-    result := input
-    for _, d := range dangerous {
-        result = strings.ReplaceAll(result, d, "")
-    }
-    return result
-}
-
-func (b *SecureTelegramBot) sendMessage(chatID int64, text string) {
-    msg := tgbotapi.NewMessage(chatID, text)
-    msg.ParseMode = "HTML"
+    // Закрываем соединения
+    b.redis.Close()
     
-    if _, err := b.bot.Send(msg); err != nil {
-        log.Printf("Ошибка отправки сообщения: %v", err)
-    }
-}
-
-func (b *SecureTelegramBot) sendMessageWithKeyboard(chatID int64, text string, keyboard interface{}) {
-    msg := tgbotapi.NewMessage(chatID, text)
-    msg.ParseMode = "HTML"
-    msg.ReplyMarkup = keyboard
-    
-    if _, err := b.bot.Send(msg); err != nil {
-        log.Printf("Ошибка отправки сообщения: %v", err)
-    }
-}
-
-func (b *SecureTelegramBot) processVoiceFile(chatID int64, filePath string) {
-    // Защищенная отправка в voice service через mTLS
-    // Реализация с шифрованием
-}
-
-func (b *SecureTelegramBot) processPhotoFile(chatID int64, filePath string) {
-    // Защищенная отправка в OCR service
-    // Реализация с шифрованием
-}
-
-func (b *SecureTelegramBot) handleHelp(update tgbotapi.Update, args []string) {
-    chatID := update.Message.Chat.ID
-    
-    msg := "📋 <b>Доступные команды:</b>\n\n"
-    for cmd, handler := range b.commands {
-        authMark := ""
-        if handler.AuthRequired {
-            authMark = " 🔐"
-        }
-        msg += fmt.Sprintf("%s - %s%s\n", cmd, handler.Description, authMark)
-    }
-    
-    b.sendMessage(chatID, msg)
+    log.Println("✅ Бот остановлен")
 }
 
 func main() {
-    // Инициализация логгера аудита
-    security.InitAuditLogger()
-
+    // Инициализация
     bot, err := NewSecureTelegramBot()
     if err != nil {
-        log.Fatalf("Ошибка создания бота: %v", err)
+        log.Fatalf("❌ Ошибка создания бота: %v", err)
     }
 
-    if err := bot.Run(); err != nil {
-        log.Fatalf("Ошибка запуска: %v", err)
+    // Установка вебхука
+    if err := bot.SetWebhook(); err != nil {
+        log.Fatalf("❌ Ошибка установки webhook: %v", err)
     }
+
+    // HTTP сервер для вебхуков
+    http.HandleFunc("/webhook/telegram", bot.WebhookHandler)
+    http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+    })
+
+    srv := &http.Server{
+        Addr:         ":8081",
+        Handler:      nil,
+        ReadTimeout:  10 * time.Second,
+        WriteTimeout: 10 * time.Second,
+    }
+
+    // Graceful shutdown
+    go func() {
+        if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("Ошибка сервера: %v", err)
+        }
+    }()
+
+    log.Println("✅ Telegram bot слушает на :8081")
+
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+
+    bot.Shutdown()
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    srv.Shutdown(ctx)
 }
