@@ -1,4 +1,3 @@
-# config/prometheus/alerts.yml
 groups:
   - name: security_alerts
     interval: 30s
@@ -49,12 +48,3 @@ groups:
         annotations:
           summary: "High latency detected"
           description: "95th percentile latency is {{ $value }}s"
-
-      - alert: DatabaseSlowQueries
-        expr: rate(database_query_duration_seconds_count{quantile="0.95"}[5m]) > 5
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Slow database queries"
-          description: "Database queries are taking longer than normal"
