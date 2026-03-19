@@ -1,34 +1,45 @@
-.PHONY: run build test docker-up docker-down migrate clean
 
-run:
-	go run cmd/server/main.go
+### **Makefile**
+```makefile
+.PHONY: help init up down logs clean backup restore test
 
-build:
-	go build -o medical-bot cmd/server/main.go
+help:
+	@echo "Доступные команды:"
+	@echo "  make init    - инициализация безопасности (создание ключей)"
+	@echo "  make up      - запуск всех сервисов"
+	@echo "  make down    - остановка всех сервисов"
+	@echo "  make logs    - просмотр логов"
+	@echo "  make clean   - очистка (удаление контейнеров и томов)"
+	@echo "  make backup  - создание резервной копии"
+	@echo "  make restore - восстановление из бэкапа"
+	@echo "  make test    - запуск тестов"
 
-test:
-	go test -v ./...
+init:
+	@chmod +x scripts/init-security.sh
+	@./scripts/init-security.sh
 
-docker-up:
-	docker-compose up -d
+up:
+	@docker-compose -f deployments/docker-compose.yml --env-file .env.production up -d
+	@echo "✅ Сервисы запущены"
 
-docker-down:
-	docker-compose down
+down:
+	@docker-compose -f deployments/docker-compose.yml down
+	@echo "✅ Сервисы остановлены"
 
-docker-logs:
-	docker-compose logs -f
-
-migrate:
-	docker-compose exec postgres psql -U postgres -d medical_bot -f /docker-entrypoint-initdb.d/001_init.sql
+logs:
+	@docker-compose -f deployments/docker-compose.yml logs -f
 
 clean:
-	rm -f medical-bot
-	docker-compose down -v
+	@docker-compose -f deployments/docker-compose.yml down -v
+	@docker system prune -f
+	@echo "✅ Очистка завершена"
 
-deps:
-	go mod download
-	go mod tidy
+backup:
+	@./scripts/backup.sh
 
-lint:
-	go fmt ./...
-	go vet ./...
+restore:
+	@./scripts/restore.sh
+
+test:
+	@go test ./... -v
+	@cd tests/security && python3 penetration_test.py
