@@ -11,6 +11,7 @@ secrets/
 *.pem
 *.crt
 *.csr
+*.pub
 
 # Временные файлы
 *.log
@@ -20,6 +21,9 @@ tmp/
 logs/
 *.pid
 *.pid.lock
+*.swp
+*.swo
+*~
 
 # Системные файлы
 .DS_Store
@@ -30,9 +34,9 @@ desktop.ini
 # IDE файлы
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
+*.sublime-*
+.project
+.classpath
 
 # Бинарные файлы
 *.exe
@@ -42,12 +46,14 @@ desktop.ini
 *.dylib
 *.test
 *.out
+bin/
 
 # Тестовые покрытия
 coverage.txt
 coverage.html
 *.coverprofile
 *.test
+*.prof
 
 # Docker
 .dockerignore
@@ -60,6 +66,7 @@ docker-compose*.yml
 *.bak
 *.tar.gz
 *.enc
+*.gpg
 
 # Базы данных
 *.db
@@ -68,3 +75,29 @@ docker-compose*.yml
 
 # Логи приложений
 /var/log/
+*.log
+
+# Kubernetes
+*.secret.yaml
+
+# Документация
+docs/_build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pythonenv*
+
+# Go
+*.exe
+*.exe~
+*.test
+*.prof
