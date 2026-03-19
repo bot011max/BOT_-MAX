@@ -1,41 +1,70 @@
 # Зависимости
 vendor/
+node_modules/
+
+# Секреты и конфиденциальные данные
+.env
+.env.production
+.env.*.local
+secrets/
+*.key
+*.pem
+*.crt
+*.csr
 
 # Временные файлы
 *.log
 *.tmp
 *.temp
 tmp/
+logs/
+*.pid
+*.pid.lock
 
-# Секреты
-.env
-*.key
-*.pem
-*.crt
+# Системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+._*
 
-# Бинарные файлы
-medical-bot
-*.exe
-*.dll
-*.so
-*.dylib
-
-# IDE
+# IDE файлы
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# Системные файлы
-.DS_Store
-Thumbs.db
-
-# Тестовые отчеты
-coverage.txt
-coverage.html
+# Бинарные файлы
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
 *.out
 
+# Тестовые покрытия
+coverage.txt
+coverage.html
+*.coverprofile
+*.test
+
 # Docker
-*.pid
 .dockerignore
+Dockerfile*
+docker-compose*.yml
+!deployments/docker-compose.yml
+
+# Бэкапы
+*.backup
+*.bak
+*.tar.gz
+*.enc
+
+# Базы данных
+*.db
+*.sqlite
+*.sqlite3
+
+# Логи приложений
+/var/log/
