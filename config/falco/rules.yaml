@@ -1,4 +1,3 @@
-# config/falco/rules.yaml
 - required_plugin_versions:
   - name: falco
     version: 0.36.0
