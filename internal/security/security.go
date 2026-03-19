@@ -1,7 +1,3 @@
-# Создаем директорию для security
-mkdir -p internal/security
-
-# Создаем файл security.go с базовыми функциями
 cat > internal/security/security.go << 'EOF'
 package security
 
@@ -9,6 +5,7 @@ import (
     "crypto/rand"
     "encoding/hex"
     "log"
+    "time"
 )
 
 func GenerateRandomString(length int) string {
