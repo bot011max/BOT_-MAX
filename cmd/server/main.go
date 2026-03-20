@@ -15,9 +15,9 @@ import (
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
 
-    "github.com/bot011max/BOT_MAX/internal/api"
-    "github.com/bot011max/BOT_MAX/internal/middleware"
-    "github.com/bot011max/BOT_MAX/internal/models"
+    "github.com/bot011max/medical-bot/internal/api"
+    "github.com/bot011max/medical-bot/internal/middleware"
+    "github.com/bot011max/medical-bot/internal/models"
 )
 
 func main() {

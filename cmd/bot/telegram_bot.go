@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/bot011max/BOT_MAX/internal/api"
-	"github.com/bot011max/BOT_MAX/internal/models"
+	"github.com/bot011max/medical-bot/internal/api"
+	"github.com/bot011max/medical-bot/internal/models"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
