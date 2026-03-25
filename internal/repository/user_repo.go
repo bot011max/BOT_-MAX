@@ -37,31 +37,10 @@ func (r *UserRepository) FindByID(id uuid.UUID) (*models.User, error) {
     return &user, err
 }
 
-func (r *UserRepository) FindByTelegramID(telegramID int64) (*models.User, error) {
-    var user models.User
-    err := r.db.Where("telegram_id = ?", telegramID).First(&user).Error
-    if errors.Is(err, gorm.ErrRecordNotFound) {
-        return nil, nil
-    }
-    return &user, err
-}
-
 func (r *UserRepository) Update(user *models.User) error {
     return r.db.Save(user).Error
 }
 
-func (r *UserRepository) UpdateTelegramID(userID uuid.UUID, telegramID int64) error {
-    return r.db.Model(&models.User{}).
-        Where("id = ?", userID).
-        Update("telegram_id", telegramID).Error
-}
-
 func (r *UserRepository) Delete(id uuid.UUID) error {
     return r.db.Delete(&models.User{}, "id = ?", id).Error
-}
-
-func (r *UserRepository) Count() (int64, error) {
-    var count int64
-    err := r.db.Model(&models.User{}).Count(&count).Error
-    return count, err
 }

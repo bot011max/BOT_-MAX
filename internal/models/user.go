@@ -8,12 +8,12 @@ import (
 
 type User struct {
     ID           uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-    Email        string         `json:"email" gorm:"uniqueIndex;not null;size:255"`
-    PasswordHash string         `json:"-" gorm:"not null;size:255"`
-    FirstName    string         `json:"first_name" gorm:"size:100"`
-    LastName     string         `json:"last_name" gorm:"size:100"`
-    Role         string         `json:"role" gorm:"default:'patient';size:50"`
-    Phone        string         `json:"phone" gorm:"size:20"`
+    Email        string         `json:"email" gorm:"uniqueIndex;not null"`
+    PasswordHash string         `json:"-" gorm:"not null"`
+    FirstName    string         `json:"first_name"`
+    LastName     string         `json:"last_name"`
+    Role         string         `json:"role" gorm:"default:'patient'"`
+    Phone        string         `json:"phone"`
     IsActive     bool           `json:"is_active" gorm:"default:true"`
     TelegramID   *int64         `json:"telegram_id,omitempty" gorm:"uniqueIndex"`
     CreatedAt    time.Time      `json:"created_at"`
@@ -26,8 +26,4 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
         u.ID = uuid.New()
     }
     return nil
-}
-
-func (u *User) GetFullName() string {
-    return u.FirstName + " " + u.LastName
 }

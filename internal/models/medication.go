@@ -9,10 +9,9 @@ import (
 type Medication struct {
     ID           uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
     UserID       uuid.UUID      `json:"user_id" gorm:"type:uuid;index;not null"`
-    Name         string         `json:"name" gorm:"not null;size:255"`
-    Dosage       string         `json:"dosage" gorm:"size:100"`
-    Frequency    string         `json:"frequency" gorm:"size:100"`
-    Form         string         `json:"form" gorm:"size:50"`
+    Name         string         `json:"name" gorm:"not null"`
+    Dosage       string         `json:"dosage"`
+    Frequency    string         `json:"frequency"`
     Instructions string         `json:"instructions" gorm:"type:text"`
     StartDate    *time.Time     `json:"start_date"`
     EndDate      *time.Time     `json:"end_date"`
@@ -20,8 +19,6 @@ type Medication struct {
     CreatedAt    time.Time      `json:"created_at"`
     UpdatedAt    time.Time      `json:"updated_at"`
     DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
-    
-    User         User           `json:"user,omitempty" gorm:"foreignKey:UserID"`
 }
 
 func (m *Medication) BeforeCreate(tx *gorm.DB) error {
@@ -29,11 +26,4 @@ func (m *Medication) BeforeCreate(tx *gorm.DB) error {
         m.ID = uuid.New()
     }
     return nil
-}
-
-func (m *Medication) IsExpired() bool {
-    if m.EndDate == nil {
-        return false
-    }
-    return time.Now().After(*m.EndDate)
 }
