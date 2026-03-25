@@ -14,6 +14,8 @@ import (
     "github.com/bot011max/medical-bot/internal/models"
     "github.com/bot011max/medical-bot/internal/repository"
     "github.com/bot011max/medical-bot/internal/security"
+    "github.com/bot011max/medical-bot/internal/ocr"
+    "github.com/bot011max/medical-bot/internal/security"
     "github.com/bot011max/medical-bot/internal/service"
 )
 
@@ -47,6 +49,7 @@ func main() {
     authService := service.NewAuthService(userRepo)
     authHandler := api.NewAuthHandler(authService)
     medicationHandler := api.NewMedicationHandler(medicationRepo)
+    securityHandler := api.NewSecurityHandler()
 
     // Настройка Gin
     r := gin.Default()
