@@ -3,9 +3,7 @@ package api
 import (
     "net/http"
     "time"
-
     "github.com/gin-gonic/gin"
-    "github.com/google/uuid"
     "github.com/bot011max/medical-bot/internal/models"
     "github.com/bot011max/medical-bot/internal/repository"
 )
@@ -19,62 +17,66 @@ func NewMedicationHandler(repo *repository.MedicationRepository) *MedicationHand
 }
 
 type CreateMedicationRequest struct {
-    Name         string `json:"name" binding:"required"`
-    Dosage       string `json:"dosage"`
-    Frequency    string `json:"frequency" binding:"required"`
-    Instructions string `json:"instructions"`
-    StartDate    string `json:"start_date"`
-    EndDate      string `json:"end_date"`
+    Name         string     `json:"name" binding:"required"`
+    Dosage       string     `json:"dosage"`
+    Frequency    string     `json:"frequency"`
+    Instructions string     `json:"instructions"`
+    StartDate    *time.Time `json:"start_date"`
+    EndDate      *time.Time `json:"end_date"`
 }
 
 func (h *MedicationHandler) Create(c *gin.Context) {
-    userID := c.GetString("user_id")
-
     var req CreateMedicationRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    med := &models.Medication{
-        ID:           uuid.New(),
-        UserID:       uuid.MustParse(userID),
+    userID, exists := c.Get("user_id")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+        return
+    }
+
+    uid := userID.(string) // Теперь это строка, а не uuid.UUID
+
+    startDate := time.Now()
+    if req.StartDate != nil {
+        startDate = *req.StartDate
+    }
+
+    medication := &models.Medication{
+        UserID:       uid,
         Name:         req.Name,
         Dosage:       req.Dosage,
         Frequency:    req.Frequency,
         Instructions: req.Instructions,
+        StartDate:    startDate,
+        EndDate:      req.EndDate,
         IsActive:     true,
     }
 
-    if req.StartDate != "" {
-        startDate, err := time.Parse("2006-01-02", req.StartDate)
-        if err == nil {
-            med.StartDate = &startDate
-        }
-    }
-
-    if req.EndDate != "" {
-        endDate, err := time.Parse("2006-01-02", req.EndDate)
-        if err == nil {
-            med.EndDate = &endDate
-        }
-    }
-
-    if err := h.repo.Create(med); err != nil {
+    if err := h.repo.Create(medication); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
     c.JSON(http.StatusCreated, gin.H{
         "success": true,
-        "data":    med,
+        "data":    medication,
     })
 }
 
 func (h *MedicationHandler) List(c *gin.Context) {
-    userID := c.GetString("user_id")
+    userID, exists := c.Get("user_id")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+        return
+    }
 
-    medications, err := h.repo.FindByUserID(uuid.MustParse(userID))
+    uid := userID.(string)
+
+    medications, err := h.repo.FindByUserID(uid)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
@@ -88,100 +90,70 @@ func (h *MedicationHandler) List(c *gin.Context) {
 
 func (h *MedicationHandler) Get(c *gin.Context) {
     id := c.Param("id")
-    userID := c.GetString("user_id")
-
-    med, err := h.repo.FindByID(uuid.MustParse(id))
-    if err != nil || med == nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "medication not found"})
-        return
-    }
-
-    if med.UserID.String() != userID {
-        c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+    medication, err := h.repo.FindByID(id)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Medication not found"})
         return
     }
 
     c.JSON(http.StatusOK, gin.H{
         "success": true,
-        "data":    med,
+        "data":    medication,
     })
 }
 
 func (h *MedicationHandler) Update(c *gin.Context) {
     id := c.Param("id")
-    userID := c.GetString("user_id")
 
-    var req struct {
-        Name         string `json:"name"`
-        Dosage       string `json:"dosage"`
-        Frequency    string `json:"frequency"`
-        Instructions string `json:"instructions"`
-        IsActive     bool   `json:"is_active"`
-    }
-
+    var req CreateMedicationRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
 
-    med, err := h.repo.FindByID(uuid.MustParse(id))
-    if err != nil || med == nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "medication not found"})
-        return
-    }
-
-    if med.UserID.String() != userID {
-        c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+    medication, err := h.repo.FindByID(id)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Medication not found"})
         return
     }
 
     if req.Name != "" {
-        med.Name = req.Name
+        medication.Name = req.Name
     }
     if req.Dosage != "" {
-        med.Dosage = req.Dosage
+        medication.Dosage = req.Dosage
     }
     if req.Frequency != "" {
-        med.Frequency = req.Frequency
+        medication.Frequency = req.Frequency
     }
     if req.Instructions != "" {
-        med.Instructions = req.Instructions
+        medication.Instructions = req.Instructions
     }
-    med.IsActive = req.IsActive
+    if req.EndDate != nil {
+        medication.EndDate = req.EndDate
+    }
 
-    if err := h.repo.Update(med); err != nil {
+    if err := h.repo.Update(medication); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
     c.JSON(http.StatusOK, gin.H{
         "success": true,
-        "data":    med,
+        "data":    medication,
     })
 }
 
 func (h *MedicationHandler) Delete(c *gin.Context) {
     id := c.Param("id")
-    userID := c.GetString("user_id")
 
-    med, err := h.repo.FindByID(uuid.MustParse(id))
-    if err != nil || med == nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "medication not found"})
-        return
-    }
-
-    if med.UserID.String() != userID {
-        c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
-        return
-    }
-
-    if err := h.repo.Delete(med.ID); err != nil {
+    if err := h.repo.Delete(id); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
 
     c.JSON(http.StatusOK, gin.H{
         "success": true,
-        "message": "medication deleted",
+        "message": "Medication deleted successfully",
     })
 }

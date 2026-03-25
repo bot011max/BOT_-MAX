@@ -9,7 +9,6 @@ import (
     "github.com/bot011max/medical-bot/internal/database"
     "github.com/bot011max/medical-bot/internal/middleware"
     "github.com/bot011max/medical-bot/internal/repository"
-    "github.com/bot011max/medical-bot/internal/service"
     "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -26,22 +25,22 @@ func main() {
         log.Fatal("Failed to migrate database:", err)
     }
 
-    // Инициализация репозиториев и сервисов
+    // Инициализация репозиториев
     userRepo := repository.NewUserRepository(db)
     medicationRepo := repository.NewMedicationRepository(db)
-    authService := service.NewAuthService(userRepo)
 
     // Инициализация хендлеров
-    authHandler := api.NewAuthHandler(authService)
+    authHandler := api.NewAuthHandler(userRepo)
     medicationHandler := api.NewMedicationHandler(medicationRepo)
 
     // Настройка роутера
     gin.SetMode(gin.ReleaseMode)
     router := gin.Default()
 
-    // Middleware безопасности
+    // Глобальные middleware безопасности
     router.Use(middleware.SecurityHeaders())
     router.Use(middleware.CORS())
+    router.Use(middleware.SQLInjectionProtection())
     router.Use(middleware.RateLimiterMiddleware())
     router.Use(middleware.SecurityAudit())
 

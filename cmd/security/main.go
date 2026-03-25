@@ -10,7 +10,6 @@ func main() {
     router := gin.Default()
     securityHandler := api.NewSecurityHandler()
     
-    // Новые эндпоинты безопасности
     router.GET("/security/hsm", securityHandler.GetHSMInfo)
     router.POST("/security/backup", securityHandler.CreateBackup)
     router.GET("/security/backups", securityHandler.ListBackups)
@@ -18,7 +17,5 @@ func main() {
     router.POST("/api/prescription/scan", securityHandler.ProcessPrescription)
     
     log.Println("🔒 Security API server starting on port 8090")
-    if err := router.Run(":8090"); err != nil {
-        log.Fatal("Failed to start security server:", err)
-    }
+    router.Run(":8090")
 }

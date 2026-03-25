@@ -1,51 +1,52 @@
 package middleware
 
 import (
-    "net/http"
     "strings"
-
     "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt/v5"
-    "github.com/bot011max/medical-bot/internal/service"
+    "github.com/bot011max/medical-bot/internal/repository"
+    "github.com/bot011max/medical-bot/internal/security"
 )
 
-func AuthMiddleware(authService *service.AuthService) gin.HandlerFunc {
+func AuthMiddleware(userRepo *repository.UserRepository) gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "authorization header required",
-            })
+            c.JSON(401, gin.H{"error": "Authorization header required"})
+            c.Abort()
             return
         }
-
-        parts := strings.Split(authHeader, " ")
-        if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "invalid authorization header format",
-            })
+        
+        parts := strings.SplitN(authHeader, " ", 2)
+        if len(parts) != 2 || parts[0] != "Bearer" {
+            c.JSON(401, gin.H{"error": "Invalid authorization format"})
+            c.Abort()
             return
         }
-
-        token, err := authService.ValidateToken(parts[1])
+        
+        token := parts[1]
+        claims, err := security.ValidateJWT(token)
         if err != nil {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "invalid or expired token",
-            })
+            c.JSON(401, gin.H{"error": "Invalid or expired token"})
+            c.Abort()
             return
         }
-
-        claims, ok := token.Claims.(jwt.MapClaims)
+        
+        userID, ok := claims["user_id"].(string)
         if !ok {
-            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-                "error": "invalid token claims",
-            })
+            c.JSON(401, gin.H{"error": "Invalid token claims"})
+            c.Abort()
             return
         }
-
-        c.Set("user_id", claims["user_id"])
-        c.Set("user_role", claims["role"])
-        c.Set("user_email", claims["email"])
+        
+        user, err := userRepo.FindByID(userID)
+        if err != nil {
+            c.JSON(401, gin.H{"error": "User not found"})
+            c.Abort()
+            return
+        }
+        
+        c.Set("user_id", user.ID)
+        c.Set("user", user)
         c.Next()
     }
 }

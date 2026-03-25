@@ -7,7 +7,7 @@ import (
 )
 
 type User struct {
-    ID           uuid.UUID      `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+    ID           string         `json:"id" gorm:"primaryKey;type:text"`
     Email        string         `json:"email" gorm:"uniqueIndex;not null"`
     PasswordHash string         `json:"-" gorm:"not null"`
     FirstName    string         `json:"first_name"`
@@ -22,8 +22,8 @@ type User struct {
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
-    if u.ID == uuid.Nil {
-        u.ID = uuid.New()
+    if u.ID == "" {
+        u.ID = uuid.New().String()
     }
     return nil
 }
