@@ -3,41 +3,33 @@
 echo "🚀 ЗАПУСК МЕДИЦИНСКОГО БОТА (SECURE MODE)"
 echo "============================================"
 
-# Останавливаем предыдущие процессы
+# Загрузка переменных окружения
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Остановка предыдущих процессов
 ./stop.sh
 
-# Запускаем API сервер с HTTPS
-echo "📡 Запуск API сервера на порту 8443 (HTTPS)..."
-cd certs && go run ../cmd/api/main.go &
+# Запуск API сервера с HTTPS
+echo "🔒 Запуск API сервера на порту 8443 (HTTPS)..."
+go run cmd/api/main.go &
 API_PID=$!
-cd ..
 
-# Запускаем Security сервер
+# Запуск Security сервера
 echo "🔒 Запуск Security сервера на порту 8090..."
 go run cmd/security/main.go &
 SECURITY_PID=$!
 
-# Запускаем Telegram бота
+# Запуск Telegram бота
 echo "🤖 Запуск Telegram бота на порту 8081..."
 go run cmd/telegram/main.go &
 TELEGRAM_PID=$!
 
-# Запускаем планировщик бэкапов
-(
-    while true; do
-        sleep 3600  # Каждый час
-        curl -s -X POST http://localhost:8090/security/backup \
-            -H "Content-Type: application/json" \
-            -d '{"description": "Auto backup - hourly"}'
-    done
-) &
-BACKUP_PID=$!
-
-# Сохраняем PID
+# Сохранение PID
 echo $API_PID > .api_pid
 echo $SECURITY_PID > .security_pid
 echo $TELEGRAM_PID > .telegram_pid
-echo $BACKUP_PID > .backup_pid
 
 echo ""
 echo "✅ БОТ ЗАПУЩЕН В ЗАЩИЩЕННОМ РЕЖИМЕ!"
@@ -46,13 +38,13 @@ echo "   Security API: http://localhost:8090"
 echo "   Telegram бот: @NEW_lorhelper_bot"
 echo ""
 echo "🔐 АКТИВНЫЕ ЗАЩИТЫ:"
-echo "   - HTTPS/TLS"
+echo "   - HTTPS/TLS 1.3"
+echo "   - JWT секрет из .env"
+echo "   - CSRF Protection"
+echo "   - Шифрование базы данных"
+echo "   - 2FA готово"
 echo "   - Security Headers"
 echo "   - Rate Limiting"
-echo "   - SQL Injection Protection"
-echo "   - CORS Policy"
-echo "   - Security Audit"
-echo "   - Auto Backups"
 echo ""
 echo "Для остановки: ./stop.sh"
 

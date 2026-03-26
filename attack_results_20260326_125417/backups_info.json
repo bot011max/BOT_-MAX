@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "id": "backup_20260326_122219",
+      "timestamp": "2026-03-26T12:22:19.055817666Z",
+      "size": 818,
+      "tables": null,
+      "description": ""
+    },
+    {
+      "id": "backup_20260326_122408",
+      "timestamp": "2026-03-26T12:24:08.031813995Z",
+      "size": 815,
+      "tables": null,
+      "description": ""
+    }
+  ],
+  "success": true
+}

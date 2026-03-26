@@ -1,0 +1,8 @@
+{
+  "audit": true,
+  "blocks": 2,
+  "ids": true,
+  "ips": true,
+  "quantum": true,
+  "rate_limiter": true
+}

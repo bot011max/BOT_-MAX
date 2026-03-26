@@ -1,0 +1,105 @@
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m🔴 RED TEAM ASSESSMENT: МЕДИЦИНСКИЙ БОТ[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+Дата: Thu Mar 26 12:18:53 UTC 2026
+Целевая система: Medical Bot (Military Grade Security)
+Аудитор: Red Team Assessment
+
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m1. СБОР ИНФОРМАЦИИ (OSINT)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;34m📌 Проверка доступности сервисов...[0m
+[0;32m✅ API сервер доступен: http://localhost:8080[0m
+[0;32m✅ Security API сервер доступен: http://localhost:8090[0m
+[0;32m✅ Telegram бот доступен: http://localhost:8081[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m2. ПРОВЕРКА HTTPS (CVSS 9.8)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;32m✅ HTTPS настроен[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m3. ПРОВЕРКА SECURITY HEADERS (CVSS 7.5)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;32m✅ Strict-Transport-Security: присутствует[0m
+[0;32m✅ X-Frame-Options: присутствует[0m
+[0;32m✅ X-Content-Type-Options: присутствует[0m
+[0;32m✅ X-XSS-Protection: присутствует[0m
+[0;32m✅ Content-Security-Policy: присутствует[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m4. ПРОВЕРКА АУТЕНТИФИКАЦИИ (CVSS 9.1)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;34m📌 Тест слабого пароля...[0m
+[0;32m✅ Слабые пароли блокируются[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m8. ТЕСТ RATE LIMITING (CVSS 7.5)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;34m📌 Отправка 10 запросов подряд...[0m
+[0;32m✅ Rate limiting активен (заблокировано 10 запросов)[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m9. ПРОВЕРКА HSM (CVSS 6.5)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[1;33m🟡 СРЕДНИЙ РИСК: HSM в SOFTWARE режиме - меньше защиты[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m10. ПРОВЕРКА БЭКАПОВ (CVSS 6.8)[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;31m🟠 ВЫСОКИЙ РИСК: Бэкапы отсутствуют - риск потери данных[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36m📊 ИТОГОВЫЙ ОТЧЕТ RED TEAM ASSESSMENT[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;36mСТАТИСТИКА УЯЗВИМОСТЕЙ:[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;31m🔴 КРИТИЧЕСКИЕ: 0[0m
+[0;31m🟠 ВЫСОКИЕ: 1[0m
+[1;33m🟡 СРЕДНИЕ: 1[0m
+[0;34m🔵 НИЗКИЕ: 0[0m
+[0;35m────────────────────────────────────────────────────────────────[0m
+[0;36m📊 ВСЕГО УЯЗВИМОСТЕЙ: 2[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+
+[0;36mОЦЕНКА БЕЗОПАСНОСТИ: 90%[0m
+[0;32m✅ Уровень безопасности: ВЫСОКИЙ[0m
+
+[0;35m════════════════════════════════════════════════════════════════[0m
+[0;32m✅ АУДИТ ЗАВЕРШЕН[0m
+[0;34m📄 Отчет сохранен: security_assessment_20260326_121853.txt[0m
+[0;35m════════════════════════════════════════════════════════════════[0m
+]633;D;0]633;P;Cwd=/workspaces/BOT_MAX[?2004h]633;A[0;32m@bot011max [0m➜ [1;34m/workspaces/BOT_MAX [0;36m([1;31mmain[0;36m) [0m$ ]633;B[7m# Сохранить скрипт[27m
+[7mnano red_team_assessment_fixed.sh[27m
+
+[7m# Сделать исполняемым[27m
+[7mchmod +x red_team_assessment_fixed.sh[27m
+
+[7m# Запустить (терминал НЕ закроется!)[27m
+[7m./red_team_assessment_fixed.sh[27m
+
+[7m# Или запустить в фоне[27m
+[7m./red_team_assessment_fixed.sh &[27m[A[A[A[A[A[A[A[A[A[A]633;A[0;32m@bot011max [0m➜ [1;34m/workspaces/BOT_MAX [0;36m([1;31mmain[0;36m) [0m$ ]633;B# Сохранить скрипт
+nano red_team_assessment_fixed.sh
+
+# Сделать исполняемым
+chmod +x red_team_assessment_fixed.sh
+
+# Запустить (терминал НЕ закроется!)
+./red_team_assessment_fixed.sh
+
+# Или запустить в фоне
+./red_team_assessment_fixed.sh &
+[?2004l]633;E;nano red_team_assessment_fixed.sh;08e294a1-c82d-4e64-8f66-d1b64280bd81]633;C[?2004h[?1049h[22;0;0t[1;24r(B[m[4l[?7h[39;49m[?1h=[?1h=[?25l[39;49m(B[m[H[2J[22d(B[0;7mFile ...h is being edited by codespace (with nano 7.2, PID 35958); open anyway? [23;1H Y(B[m Yes[24d(B[0;7m N(B[m No[24;17H(B[0;7m^C(B[m Cancel[22;80H[?12l[?25h[?25l[22;34H[1K (B[0;7m[ New File ](B[m[K[H(B[0;7m  GNU nano 7.2              red_team_assessment_fixed.sh                        [1;79H(B[m[23d(B[0;7m^G(B[m Help[14G(B[0;7m^O(B[m Write Out (B[0;7m^W(B[m Where Is  (B[0;7m^K(B[m Cut[53G(B[0;7m^T(B[m Execute   (B[0;7m^C(B[m Location[24d(B[0;7m^X(B[m Exit[14G(B[0;7m^R(B[m Read File (B[0;7m^\(B[m Replace   (B[0;7m^U(B[m Paste     (B[0;7m^J(B[m Justify   (B[0;7m^/(B[m Go To Line[2d[?12l[?25h[?25l[1;58H(B[0;7m*[79G(B[m[22d[K[23;2H(B[0;7mL(B[m Refresh   (B[0;7m^W(B[m Where Is  (B[0;7mM-Q(B[m Previous (B[0;7m^P(B[m Prev Line (B[0;7m^Y(B[m Prev Page (B[0;7mM-\(B[m First Line[24;4HClose[15G(B[0;7mQ(B[m Where Was (B[0;7mM-W(B[m Next     (B[0;7m^N(B[m Next Line (B[0;7m^V(B[m Next Page (B[0;7mM-/(B[m Last[79G[1;3H(B[0;7m            [1;29H   Main nano help text        [79G(B[m[3d The nano editor is designed to emulate the functionality and ease-of-use[4d of the UW Pico text editor.  There are four main sections of the editor.[5d The top line shows the program version, the current filename being[6d edited, and whether or not the file has been modified.  Next is the main[7d editor window showing the file being edited.  The status line is the[8d third line from the bottom and shows important messages.  The bottom two[9d lines show the most commonly used shortcuts in the editor.[11d Shortcuts are written as follows: Control-key sequences are notated with[12d a (B[0;1m[31m'^'[39m(B[m and can be entered either by using the Ctrl key or pressing the Esc[13d key twice.  Meta-key sequences are notated with (B[0;1m[31m'M-'[39m(B[m and can be entered[14d using either the Alt, Cmd, or Esc key, depending on your keyboard setup.[15d Also, pressing Esc twice and then typing a three-digit decimal number[16d from 000 to 255 will enter the character with the corresponding value.[17d The following keystrokes are available in the main editor window.[18d Alternative keys are shown in parentheses:[20d[36m^G[39m(B[m     ([36mF1[39m)[18G(B[mDisplay this help text[21d[36m^X[39m(B[m     ([36mF2[39m)[18G(B[mClose the current buffer / Exit from nano[22;32H(B[0;1m[37m[41m[ Unbound key: P ][39;49m(B[m(B[0;1m[37m[41m5 ][39;49m(B[m[K[23;2H(B[0;7mG(B[m Help      (B[0;7m^O(B[m Write Out (B[0;7m^W(B[m Where Is  (B[0;7m^K(B[m Cut       (B[0;7m^T(B[m Execute   (B[0;7m^C(B[m Location[K[24;4HExit [15G(B[0;7mR(B[m Read File (B[0;7m^\(B[m Replace   (B[0;7m^U(B[m Paste     (B[0;7m^J(B[m Justify   (B[0;7m^/(B[m Go To[79G[1;3H(B[0;7mGNU nano 7.2[1;29Hred_team_assessment_fixed.sh *[79G(B[m[3d[K[4d[K[5d[K[6d[K[7d[K[8d[K[9d[K[11d[K[12d[K[13d[K[14d[K[15d[K[16d[K[17d[K[18d[K[20d[K[21d[K[22;29H(B[0;7m[ Justified paragraph ](B[m[2d 26.03.2026[3d[?12l[?25h[?25l[23;14H       (B[0;7mM-D(B[m DOS Format      (B[0;7mM-A(B[m Append          (B[0;7mM-B(B[m Backup File[K[24;2H(B[0;7mC(B[m Cancel           (B[0;7mM-M(B[m Mac Format      (B[0;7mM-P(B[m Prepend         (B[0;7m^T(B[m Browse[K[22d(B[0;7mFile Name to Write: red_team_assessment_fixed.sh                                [22;49H(B[m[?12l[?25h[?25l[?12l[?25h[24;1H[?1049l[23;0;0t[?1l>

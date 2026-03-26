@@ -1,0 +1,10 @@
+{
+  "data": {
+    "available": false,
+    "device_path": "/dev/tpm0",
+    "encryption": "AES-256-GCM",
+    "initialized": true,
+    "mode": "software"
+  },
+  "success": true
+}
