@@ -4,31 +4,24 @@ import (
     "crypto/aes"
     "crypto/cipher"
     "crypto/rand"
-    "crypto/sha256"
     "encoding/hex"
     "io"
     "os"
-    "path/filepath"
 )
 
 type EncryptedDB struct {
-    key       []byte
-    dbPath    string
-    tempPath  string
+    key      []byte
+    dbPath   string
 }
 
 func NewEncryptedDB(dbPath string) (*EncryptedDB, error) {
-    // Загрузка ключа из переменной окружения
     keyHex := os.Getenv("DB_ENCRYPTION_KEY")
     if keyHex == "" {
-        // Генерация нового ключа
         key := make([]byte, 32)
         if _, err := rand.Read(key); err != nil {
             return nil, err
         }
         keyHex = hex.EncodeToString(key)
-        // Сохраняем ключ в файл (только для разработки!)
-        os.WriteFile(".db_key", []byte(keyHex), 0600)
     }
     
     key, err := hex.DecodeString(keyHex)
@@ -37,38 +30,9 @@ func NewEncryptedDB(dbPath string) (*EncryptedDB, error) {
     }
     
     return &EncryptedDB{
-        key:      key,
-        dbPath:   dbPath,
-        tempPath: dbPath + ".tmp",
+        key:    key,
+        dbPath: dbPath,
     }, nil
-}
-
-func (e *EncryptedDB) EncryptFile() error {
-    data, err := os.ReadFile(e.dbPath)
-    if err != nil {
-        return err
-    }
-    
-    encrypted, err := e.encrypt(data)
-    if err != nil {
-        return err
-    }
-    
-    return os.WriteFile(e.dbPath+".enc", encrypted, 0600)
-}
-
-func (e *EncryptedDB) DecryptFile() error {
-    encrypted, err := os.ReadFile(e.dbPath + ".enc")
-    if err != nil {
-        return err
-    }
-    
-    decrypted, err := e.decrypt(encrypted)
-    if err != nil {
-        return err
-    }
-    
-    return os.WriteFile(e.dbPath, decrypted, 0600)
 }
 
 func (e *EncryptedDB) encrypt(data []byte) ([]byte, error) {
@@ -110,10 +74,30 @@ func (e *EncryptedDB) decrypt(data []byte) ([]byte, error) {
     return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
-func (e *EncryptedDB) EnableEncryption() error {
-    return e.EncryptFile()
+func (e *EncryptedDB) EncryptFile() error {
+    data, err := os.ReadFile(e.dbPath)
+    if err != nil {
+        return err
+    }
+    
+    encrypted, err := e.encrypt(data)
+    if err != nil {
+        return err
+    }
+    
+    return os.WriteFile(e.dbPath+".enc", encrypted, 0600)
 }
 
-func (e *EncryptedDB) DisableEncryption() error {
-    return e.DecryptFile()
+func (e *EncryptedDB) DecryptFile() error {
+    encrypted, err := os.ReadFile(e.dbPath + ".enc")
+    if err != nil {
+        return err
+    }
+    
+    decrypted, err := e.decrypt(encrypted)
+    if err != nil {
+        return err
+    }
+    
+    return os.WriteFile(e.dbPath, decrypted, 0600)
 }
