@@ -16,7 +16,6 @@
 .env
 .env.local
 .env.production
-.env.*
 
 # Логи
 *.log
@@ -26,26 +25,16 @@ logs/
 .security_pid
 .telegram_pid
 
-# Бэкапы
-backups/
-git_backups_*/
-*.tar.gz
-*.zip
-*.enc
-.db_key
-.user_key
-
 # База данных
 data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 
-# Сертификаты
-certs/
-*.pem
-*.key
-*.crt
+# Бэкапы
+backups/
+*.tar.gz
+*.zip
 
 # IDE
 .vscode/
@@ -59,14 +48,3 @@ certs/
 tmp/
 /tmp
 *.tmp
-
-# Тесты
-test_*.jpg
-test_*.png
-prescription.jpg
-
-# Атаки и отчеты
-attack_results_*/
-security_logs/
-attack_log_*.txt
-security_assessment_*.txt
