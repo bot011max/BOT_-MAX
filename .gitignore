@@ -1,50 +1,37 @@
-# Бинарные файлы
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-
-# Go файлы
-/vendor/
-/bin/
-/pkg/
-
-# Файлы окружения
-.env
-.env.local
-.env.production
-
-# Логи
-*.log
-logs/
+# PID файлы
 *.pid
 .api_pid
 .security_pid
 .telegram_pid
 
+# Логи
+logs/
+*.log
+
 # База данных
 data/*.db
 data/*.db-journal
-data/*.db-wal
-data/*.db-shm
 
-# Бэкапы
-backups/
-*.tar.gz
-*.zip
+# Временные файлы
+tmp/
+*.tmp
+
+# Бинарники
+medical-bot
+medical-bot-api
+medical-bot-security
+medical-bot-telegram
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Временные файлы
-tmp/
-/tmp
-*.tmp
+# OS
+.DS_Store
+Thumbs.db
+
+# Сертификаты (если есть)
+certs/*.pem
+certs/*.key
