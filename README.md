@@ -1,56 +1,64 @@
-# 🏥 Медицинский бот (Military Grade Security)
+# 🏥 Медицинский бот BOT_MAX
 
 [![Go Version](https://img.shields.io/badge/Go-1.22-blue)](https://golang.org/)
-[![Security](https://img.shields.io/badge/Security-Military%20Grade-red)](https://github.com/bot011max/medical-bot/security)
+[![Security](https://img.shields.io/badge/Security-Military%20Grade-red)](https://github.com/bot011max/BOT_MAX/security)
+[![Version](https://img.shields.io/badge/Version-8.0.0-brightgreen)](https://github.com/bot011max/BOT_MAX/releases)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue)](https://www.docker.com/)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-blue)](https://t.me/botfather)
 
 ## 📋 О ПРОЕКТЕ
 
-Telegram-бот для отслеживания лекарств и записи симптомов с **военным уровнем защиты**.
+**BOT_MAX** - это высокозащищенный Telegram-бот для отслеживания лекарств, записи симптомов и управления медицинскими данными с **военным уровнем защиты**. Проект сочетает передовые технологии безопасности с удобным интерфейсом, обеспечивая полную конфиденциальность медицинской информации.
+
+### 🎯 КЛЮЧЕВЫЕ ОСОБЕННОСТИ
+
+- 💊 **Умные напоминания** о приеме лекарств
+- 🎤 **Голосовой ввод** симптомов с AI анализом
+- 📸 **Распознавание рецептов** по фото
+- 👨‍⚕️ **Интеграция с врачами** через панель управления
+- 💳 **Система подписок** и биллинга
+- 🔔 **Push-уведомления** о важных событиях
 
 ### 🛡️ БЕЗОПАСНОСТЬ (MILITARY GRADE)
 
-- ✅ **Квантово-устойчивая криптография** - защита от квантовых компьютеров
-- ✅ **Многофакторная биометрия** - голос, лицо, отпечатки
-- ✅ **Аппаратное шифрование** - HSM, TPM, Secure Enclave
-- ✅ **WAF + IDS + IPS** - обнаружение и блокировка атак в реальном времени
-- ✅ **Адаптивный rate limiting** - защита от DDoS и брутфорса
-- ✅ **Полный аудит** - все действия логируются в неизменяемом хранилище
-- ✅ **Автоматическое восстановление** - бэкапы и откат при компрометации
-- ✅ **Мертвая хватка** - самоуничтожение данных при попытке взлома
-
-### ✨ ВОЗМОЖНОСТИ
-
-- 💊 **Напоминания о лекарствах** - никогда не пропусти прием
-- 📝 **Голосовой ввод симптомов** - просто расскажи, что болит
-- 📅 **Запись к врачу** - интеграция с медицинскими учреждениями
-- 📸 **Анализ фото рецептов** - распознавание лекарств по фото
-- 🔐 **Безопасное хранение** - все данные зашифрованы
+| Компонент | Технологии | Описание |
+|-----------|------------|----------|
+| **Криптография** | Квантово-устойчивые алгоритмы, AES-256-GCM | Защита от классических и квантовых атак |
+| **Аппаратная защита** | HSM, TPM 2.0, Secure Enclave | Физическое хранение ключей шифрования |
+| **Аутентификация** | Многофакторная биометрия (голос, лицо) | Исключает несанкционированный доступ |
+| **Сетевая защита** | WAF, IDS, IPS, DDoS protection | Блокировка атак в реальном времени |
+| **Аудит** | Блокчейн-подобное логирование | Неизменяемая история всех действий |
+| **Защита данных** | Шифрование на уровне БД | Даже при компрометации данные не читаемы |
+| **Автовосстановление** | Автоматические бэкапы | Восстановление за 5 минут |
+| **Мертвая хватка** | Самоуничтожение данных | Защита от физического взлома |
 
 ## 🚀 БЫСТРЫЙ СТАРТ
 
 ### Предварительные требования
 
-- [Docker](https://docs.docker.com/get-docker/) и Docker Compose
+- [Docker](https://docs.docker.com/get-docker/) и Docker Compose (рекомендуется)
+- [Go 1.22+](https://golang.org/dl/) (для разработки)
 - [Git](https://git-scm.com/downloads)
-- Telegram Bot Token (получить у [@BotFather](https://t.me/botfather))
+- Telegram Bot Token ([@BotFather](https://t.me/botfather))
 
-### Установка
+### Установка и запуск
 
 ```bash
 # 1. Клонируем репозиторий
-git clone git@github.com:bot011max/medical-bot.git
-cd medical-bot
+git clone https://github.com/bot011max/BOT_MAX.git
+cd BOT_MAX
 
 # 2. Инициализируем безопасность (создаются ключи и сертификаты)
 chmod +x scripts/init-security.sh
 ./scripts/init-security.sh
 
-# 3. Редактируем .env.production и добавляем TELEGRAM_TOKEN
-nano .env.production
+# 3. Настраиваем окружение
+cp .env.example .env.production
+nano .env.production  # Добавляем TELEGRAM_TOKEN
 
-# 4. Запускаем проект
+# 4. Запускаем через Docker
 docker-compose -f deployments/docker-compose.yml --env-file .env.production up -d
 
-# 5. Проверяем, что всё работает
+# 5. Проверяем работу
 curl http://localhost:8080/health
