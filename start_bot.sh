@@ -4,13 +4,16 @@ echo "============================"
 
 cd /workspaces/BOT_MAX
 
+# Переменные окружения
 export JWT_SECRET="medical_bot_super_secret_key_2026_military_grade_32bytes"
 export MASTER_KEY="medical_bot_master_key_for_encryption_2026_32bytes"
 
+# Создание директорий
 mkdir -p data logs
 
-# База данных
+# Проверка базы данных
 if [ ! -f "data/medical_bot.db" ]; then
+    echo "📦 Создание базы данных..."
     sqlite3 data/medical_bot.db << 'SQL'
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -39,15 +42,33 @@ VALUES (
 SQL
 fi
 
-# Остановка старых процессов
-pkill -f "go run" 2>/dev/null
+# Проверка, что сервисы уже запущены
+if pgrep -f "cmd/api/main.go" > /dev/null; then
+    echo "✅ Main API уже запущен"
+else
+    echo "📡 Запуск Main API (порт 8080)..."
+    go run cmd/api/main.go > logs/api.log 2>&1 &
+    echo $! > .api_pid
+    sleep 2
+fi
 
-# Запуск
-go run cmd/api/main.go > logs/api.log 2>&1 &
-go run cmd/security/main.go > logs/security.log 2>&1 &
-go run cmd/telegram/main.go > logs/telegram.log 2>&1 &
+if pgrep -f "cmd/security/main.go" > /dev/null; then
+    echo "✅ Security API уже запущен"
+else
+    echo "🔒 Запуск Security API (порт 8090)..."
+    go run cmd/security/main.go > logs/security.log 2>&1 &
+    echo $! > .security_pid
+    sleep 2
+fi
 
-sleep 3
+if pgrep -f "cmd/telegram/main.go" > /dev/null; then
+    echo "✅ Telegram бот уже запущен"
+else
+    echo "🤖 Запуск Telegram бота (порт 8081)..."
+    go run cmd/telegram/main.go > logs/telegram.log 2>&1 &
+    echo $! > .telegram_pid
+    sleep 2
+fi
 
 echo ""
 echo "✅ БОТ ЗАПУЩЕН!"

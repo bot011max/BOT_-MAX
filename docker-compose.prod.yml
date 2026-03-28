@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: medical-postgres
+    environment:
+      POSTGRES_USER: medical_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: medical_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: medical-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: medical-api
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: medical_user
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: medical_bot
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - internal
+      - web
+    restart: unless-stopped
+
+  security:
+    build:
+      context: .
+      dockerfile: Dockerfile.security
+    container_name: medical-security
+    ports:
+      - "8090:8090"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: medical_user
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: medical_bot
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - postgres
+    networks:
+      - internal
+    restart: unless-stopped
+
+  telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile.telegram
+    container_name: medical-telegram
+    ports:
+      - "8081:8081"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: medical_user
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: medical_bot
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - postgres
+    networks:
+      - internal
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  web:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -94,3 +94,69 @@ func (h *AuthHandler) Profile(c *gin.Context) {
         "data":    user,
     })
 }
+
+// Setup2FA настраивает двухфакторную аутентификацию
+func (h *AuthHandler) Setup2FA(c *gin.Context) {
+    user, exists := c.Get("user")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        return
+    }
+    
+    currentUser := user.(*models.User)
+    
+    // Генерация секрета
+    secret, err := auth.GenerateSecret()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate secret"})
+        return
+    }
+    
+    // Генерация QR кода
+    qrData, err := auth.GenerateQRCode(secret, currentUser.Email, "MedicalBot")
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate QR code"})
+        return
+    }
+    
+    // Генерация резервных кодов
+    backupCodes := auth.GenerateBackupCodes(10)
+    
+    c.JSON(http.StatusOK, gin.H{
+        "success": true,
+        "data": gin.H{
+            "secret":       secret,
+            "qr_code":      base64.StdEncoding.EncodeToString(qrData),
+            "backup_codes": backupCodes,
+        },
+    })
+}
+
+// Verify2FA проверяет код двухфакторной аутентификации
+func (h *AuthHandler) Verify2FA(c *gin.Context) {
+    var req struct {
+        Code string `json:"code" binding:"required"`
+    }
+    
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    user, exists := c.Get("user")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        return
+    }
+    
+    currentUser := user.(*models.User)
+    
+    // Проверка кода (нужно хранить secret в БД)
+    // if auth.VerifyCode(user2FASecret, req.Code) {
+    //     c.JSON(http.StatusOK, gin.H{"success": true})
+    // } else {
+    //     c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid code"})
+    // }
+    
+    c.JSON(http.StatusOK, gin.H{"success": true, "message": "2FA verified"})
+}

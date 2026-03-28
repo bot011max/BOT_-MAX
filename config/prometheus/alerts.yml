@@ -1,50 +1,35 @@
 groups:
-  - name: security_alerts
+  - name: medical_bot_alerts
     interval: 30s
     rules:
-      - alert: HighWAFBlocks
-        expr: sum(rate(waf_blocks_total[5m])) > 100
+      - alert: HighRequestRate
+        expr: rate(http_requests_total[5m]) > 100
         for: 2m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: "High number of WAF blocks"
-          description: "WAF blocked {{ $value }} requests in last 5 minutes"
+          summary: "High request rate detected"
 
-      - alert: BruteForceAttack
-        expr: sum(rate(failed_logins_total[5m])) > 50
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Possible brute force attack"
-          description: "{{ $value }} failed login attempts in last minute"
-
-      - alert: DDoSDetected
-        expr: sum(rate(rate_limiter_blocks_total[1m])) > 1000
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Possible DDoS attack"
-          description: "Rate limiter blocked {{ $value }} requests in last minute"
-
-  - name: service_alerts
-    rules:
       - alert: APIDown
-        expr: up{job="api"} == 0
+        expr: up{job="medical-bot-api"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "API is down"
-          description: "API has been down for more than 1 minute"
 
-      - alert: HighLatency
-        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
-        for: 5m
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+
+      - alert: FailedLogins
+        expr: rate(login_attempts_total{status="failed"}[5m]) > 10
+        for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "High latency detected"
-          description: "95th percentile latency is {{ $value }}s"
+          summary: "Possible brute force attack"

@@ -3,24 +3,21 @@ package auth
 import (
     "crypto/rand"
     "encoding/base32"
-    "encoding/base64"
     "image/png"
     "os"
-    "time"
     
     "github.com/pquerna/otp/totp"
     "github.com/skip2/go-qrcode"
 )
 
 type TwoFactorAuth struct {
-    Secret   string    `json:"secret"`
-    Verified bool      `json:"verified"`
-    CreatedAt time.Time `json:"created_at"`
-    BackupCodes []string `json:"backup_codes,omitempty"`
+    Secret   string   `json:"secret"`
+    Verified bool     `json:"verified"`
+    Codes    []string `json:"backup_codes,omitempty"`
 }
 
-// GenerateTOTPSecret генерирует секрет для TOTP
-func GenerateTOTPSecret() (string, error) {
+// GenerateSecret генерирует секрет для TOTP
+func GenerateSecret() (string, error) {
     secret := make([]byte, 20)
     _, err := rand.Read(secret)
     if err != nil {
@@ -35,8 +32,8 @@ func GenerateQRCode(secret, email, issuer string) ([]byte, error) {
     return qrcode.Encode(url, qrcode.Medium, 256)
 }
 
-// VerifyTOTP проверяет TOTP код
-func VerifyTOTP(secret, code string) bool {
+// VerifyCode проверяет TOTP код
+func VerifyCode(secret, code string) bool {
     return totp.Validate(code, secret)
 }
 
@@ -44,9 +41,9 @@ func VerifyTOTP(secret, code string) bool {
 func GenerateBackupCodes(count int) []string {
     codes := make([]string, count)
     for i := 0; i < count; i++ {
-        code := make([]byte, 8)
+        code := make([]byte, 5)
         rand.Read(code)
-        codes[i] = base32.StdEncoding.EncodeToString(code)[:10]
+        codes[i] = base32.StdEncoding.EncodeToString(code)[:8]
     }
     return codes
 }

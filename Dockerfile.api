@@ -1,11 +1,8 @@
 FROM golang:1.22-alpine AS builder
 
-# Установка зависимостей для сборки
-RUN apk add --no-cache git ca-certificates tzdata
-
 WORKDIR /app
 
-# Копирование модулей
+# Копирование go.mod и go.sum
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -13,31 +10,22 @@ RUN go mod download
 COPY . .
 
 # Сборка приложения
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o medical-bot-api ./cmd/api
 
 # Финальный образ
 FROM alpine:latest
 
-# Установка runtime зависимостей
-RUN apk --no-cache add ca-certificates tzdata curl
+# Установка CA certificates и timezone
+RUN apk --no-cache add ca-certificates tzdata
 
-# Создание пользователя
-RUN addgroup -g 1000 -S app && \
-    adduser -u 1000 -S app -G app
+WORKDIR /root/
 
-WORKDIR /app
+# Копирование бинарника и сертификатов
+COPY --from=builder /app/medical-bot-api .
+COPY --from=builder /app/certs ./certs
 
-# Копирование бинарного файла
-COPY --from=builder --chown=app:app /app/api .
+# Экспорт портов
+EXPOSE 8080 8443
 
-# Создание директории для логов
-RUN mkdir -p /var/log && chown -R app:app /var/log
-
-USER app
-
-EXPOSE 8080
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-CMD ["./api"]
+# Запуск
+CMD ["./medical-bot-api"]

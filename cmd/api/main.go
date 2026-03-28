@@ -1,8 +1,11 @@
 package main
 
 import (
+    "crypto/tls"
     "log"
+    "net/http"
     "os"
+    "time"
 
     "github.com/gin-gonic/gin"
     "github.com/bot011max/medical-bot/internal/api"
@@ -17,7 +20,7 @@ func main() {
     // Загрузка переменных окружения
     jwtSecret := os.Getenv("JWT_SECRET")
     if jwtSecret == "" {
-        log.Println("⚠️ JWT_SECRET not set, using default")
+        log.Fatal("JWT_SECRET not set")
     }
 
     // Инициализация базы данных
@@ -67,7 +70,8 @@ func main() {
             "ips":          true,
             "rate_limiter": true,
             "audit":        true,
-            "blocks":       2,
+            "https":        true,
+            "tls_version":  "1.3",
         })
     })
 
@@ -87,14 +91,83 @@ func main() {
     // Метрики
     router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-    // Запуск HTTP сервера
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080"
+    // Настройка TLS 1.3
+    tlsConfig := &tls.Config{
+        MinVersion: tls.VersionTLS13,
+        MaxVersion: tls.VersionTLS13,
+        CurvePreferences: []tls.CurveID{
+            tls.X25519,
+            tls.CurveP256,
+            tls.CurveP384,
+        },
+        CipherSuites: []uint16{
+            tls.TLS_AES_256_GCM_SHA384,
+            tls.TLS_CHACHA20_POLY1305_SHA256,
+            tls.TLS_AES_128_GCM_SHA256,
+        },
     }
-    
-    log.Printf("🚀 HTTP Server starting on port %s", port)
-    if err := router.Run(":" + port); err != nil {
+
+    // HTTPS сервер
+    srv := &http.Server{
+        Addr:         ":8443",
+        Handler:      router,
+        TLSConfig:    tlsConfig,
+        ReadTimeout:  15 * time.Second,
+        WriteTimeout: 15 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
+
+    log.Println("🚀 HTTPS Server starting on port 8443 (TLS 1.3)")
+    if err := srv.ListenAndServeTLS("certs/cert.pem", "certs/key.pem"); err != nil {
         log.Fatal("❌ Failed to start server:", err)
     }
 }
+
+// Метрики для Prometheus
+var (
+    httpRequestsTotal = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "http_requests_total",
+            Help: "Total number of HTTP requests",
+        },
+        []string{"method", "endpoint", "status"},
+    )
+    
+    httpRequestDuration = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name:    "http_request_duration_seconds",
+            Help:    "HTTP request duration in seconds",
+            Buckets: prometheus.DefBuckets,
+        },
+        []string{"method", "endpoint"},
+    )
+    
+    activeUsers = promauto.NewGauge(
+        prometheus.GaugeOpts{
+            Name: "active_users_total",
+            Help: "Total number of active users",
+        },
+    )
+    
+    loginAttempts = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "login_attempts_total",
+            Help: "Total number of login attempts",
+        },
+        []string{"status"},
+    )
+)
+
+func recordMetrics() {
+    go func() {
+        for {
+            // Обновление метрик каждые 30 секунд
+            activeUsers.Set(float64(getActiveUsersCount()))
+            time.Sleep(30 * time.Second)
+        }
+    }()
+}
+
+// Metrics endpoint уже должен быть добавлен
+// router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+// Проверьте что эта строка есть в main.go
